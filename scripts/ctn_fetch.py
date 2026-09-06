@@ -23,7 +23,12 @@ s.headers.update({
     'Cookie': cookie,
     'User-Agent': os.environ.get('CTN_UA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36'),
     'Accept-Language': 'pt-BR,pt;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Referer': REPORT,
 })
+
+def now_br():
+    return dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=3)
 
 def get_page():
     r = s.get(REPORT, allow_redirects=True, timeout=60)
@@ -68,9 +73,24 @@ def month_chunks(start, end):
         cur = last + dt.timedelta(days=1)
 
 def fetch_xlsx(a, b):
-    url = BASE + '/paginas/filiado/relatorio/FiliacaoPorVendedor.aspx?dataInicio=%s&dataFim=%s' % (a.strftime('%d/%m/%Y'), b.strftime('%d/%m/%Y'))
-    r = s.get(url, timeout=120)
-    if r.headers.get('content-type', '').startswith('text/html') or len(r.content) < 2000 and b'inv' in r.content:
+    url = BASE + '/paginas/filiado/relatorio/FiliacaoPorVendedor.aspx'
+    tries = [
+        {'dataInicio': a.strftime('%d/%m/%Y'), 'dataFim': b.strftime('%d/%m/%Y')},
+        {'dataInicio': a.strftime('%d/%m/%Y 00:00:00'), 'dataFim': b.strftime('%d/%m/%Y 23:59:59')},
+    ]
+    last = None
+    for params in tries:
+        r = s.get(url, params=params, timeout=120)
+        ctype = r.headers.get('content-type', '')
+        if r.content[:2] == b'PK':
+            break
+        last = (r.status_code, ctype, r.url, r.content[:400].decode('utf-8', 'replace'))
+    else:
+        st, ctype, u, body = last
+        print('--- diagnóstico ---')
+        print('status:', st, '| content-type:', ctype)
+        print('url final:', u)
+        print('início da resposta:', body.replace('\n', ' ')[:400])
         sys.exit('Parâmetros inválidos ou sessão perdida ao baixar %s–%s' % (a, b))
     wb = openpyxl.load_workbook(io.BytesIO(r.content), read_only=True)
     ws = wb.active
@@ -84,7 +104,7 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     meta = json.load(open(os.path.join(root, 'data', 'meta.json'), encoding='utf-8'))
     start = dt.date.fromisoformat(meta['periodo']['fim'])
-    today = (dt.datetime.utcnow() - dt.timedelta(hours=3)).date()  # Brasília
+    today = now_br().date()  # Brasília
     if start > today:
         start = today
     out = os.path.join(root, 'src'); os.makedirs(out, exist_ok=True)
