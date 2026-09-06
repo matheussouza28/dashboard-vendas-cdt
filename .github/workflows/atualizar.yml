@@ -30,6 +30,7 @@ jobs:
       - name: Baixar vendas do CTN
         env:
           CTN_COOKIE: ${{ secrets.CTN_COOKIE }}
+          MINHACONTA_COOKIE: ${{ secrets.MINHACONTA_COOKIE }}
         run: python scripts/ctn_fetch.py
 
       - name: Regenerar dashboard
