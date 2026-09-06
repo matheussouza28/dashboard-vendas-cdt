@@ -1,0 +1,17 @@
+{
+ "atualizado_em": "06/09/2026",
+ "periodo": {
+  "inicio": "2026-01-01",
+  "fim": "2026-09-05"
+ },
+ "unidades": [
+  "BELEM CENTRO",
+  "MANAUS CENTRO",
+  "MANAUS NORTE",
+  "OSASCO",
+  "PARINTINS",
+  "PORTO ALEGRE NORTE"
+ ],
+ "total": 38021,
+ "hoje": "2026-09-06"
+}
