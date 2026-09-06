@@ -1,0 +1,50 @@
+name: Atualizar dashboard de vendas
+
+on:
+  schedule:
+    # De hora em hora, das 07h às 22h (horário de Brasília = UTC-3)
+    - cron: '5 10-23 * * *'
+    - cron: '5 0-1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atualizar
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install --quiet requests openpyxl pandas
+
+      - name: Baixar vendas do CTN
+        env:
+          CTN_COOKIE: ${{ secrets.CTN_COOKIE }}
+        run: python scripts/ctn_fetch.py
+
+      - name: Regenerar dashboard
+        run: python build.py src --repo .
+
+      - name: Publicar
+        run: |
+          rm -rf src
+          git config user.name "Atualização automática"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --quiet -- data/base_vendas.csv; then
+            echo "Nenhuma venda nova; nada a publicar."
+            git checkout -- .
+          else
+            git add -A
+            git commit -m "Atualização automática $(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')"
+            git push
+          fi
