@@ -104,7 +104,7 @@ body.mode-report #report{display:block}
 .rep-controls input[type=number]{width:90px}
 .rep-controls .primary{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
 .rep-controls .seg button[aria-pressed="true"]{background:var(--surface-2);border-color:var(--text-3);font-weight:600}
-.rep-wrap{overflow:auto}
+.rep-wrap{overflow:hidden}
 .rep{width:940px;background:#0f4a2a;color:#fff;font-family:"Poppins","Segoe UI",system-ui,Roboto,Arial,sans-serif;padding:0 0 26px;box-sizing:border-box}
 .rep .head{background:#0b3d22;text-align:center;padding:18px 20px 14px}
 .rep .head h3{margin:0;font-size:26px;font-weight:700;letter-spacing:.2px}
@@ -262,7 +262,9 @@ function niceTicks(max,n){if(max<=0)return[0];const raw=max/n;const p=Math.pow(1
 
 // ---------- render ----------
 function render(){
-  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.u===unit));
+  const inRep=document.body.classList.contains('mode-report');
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',inRep?t.dataset.u==='REPORT':t.dataset.u===unit));
+  if(inRep&&typeof renderReport==='function')renderReport();
   document.querySelectorAll('[data-preset]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.preset===range.kind));
   if(range.kind==='month'||range.kind==='mtd'||range.kind==='prev') sel.value=range.a.slice(0,7);
   document.getElementById('title').textContent=unit==='ALL'?'Dashboard de Vendas — Cartão de Todos':'Dashboard de Vendas — '+nice(unit);
@@ -462,6 +464,7 @@ document.getElementById('rep-5').onclick=()=>{repMode='5';repMeta.value=loadMeta
 document.getElementById('rep-os').onclick=()=>{repMode='os';repMeta.value=loadMeta();renderReport();};
 function weekStart(d){const dt=pd(d);const back=(dt.getDay()-3+7)%7;dt.setDate(dt.getDate()-back);return iso(dt);}
 function renderReport(){
+  const rw=document.querySelector('.rep-wrap');const z=Math.min(1,(rw.clientWidth||940)/940);document.getElementById('rep').style.zoom=z;
   document.getElementById('rep-5').setAttribute('aria-pressed',repMode==='5');document.getElementById('rep-os').setAttribute('aria-pressed',repMode==='os');
   const day=repDate.value||DAY;const units=repMode==='5'?REP5:['OSASCO'];const meta=+repMeta.value||0;
   const ws=weekStart(day);

@@ -2,7 +2,7 @@
 """Consolida CSVs do CTN (layout Filiação por Vendedor) em data/ e gera dashboard_vendas.html.
 Uso: python3 build.py <pasta_com_csvs_ctn> [--repo <pasta_do_repo>]
 Cada CSV: Franquia,Matricula,Filiado,Telefone,Nome,Data(serial Excel ou dd/mm/yyyy hh:mm:ss),Vendedor,Login,Prospeccao
-Regras: dedup por (Franquia, Matricula); a base existente em data/base_vendas.csv é preservada e mesclada.
+Regras: dedup por Matricula (a última ocorrência vence); a base existente em data/base_vendas.csv é preservada e mesclada.
 """
 import sys, os, glob, json, datetime as dt
 import pandas as pd
@@ -28,8 +28,8 @@ for f in sorted(glob.glob(os.path.join(src, '*.csv'))):
 df = pd.concat(frames, ignore_index=True)[COLS]
 df['DataHora'] = parse_dates(df['Data'])
 df = df.dropna(subset=['DataHora'])
-df = df.sort_values('DataHora').drop_duplicates(['Franquia','Matricula'], keep='last')
-df = df.sort_values(['Franquia','DataHora']).reset_index(drop=True)
+df = df.sort_values(['DataHora','Matricula']).drop_duplicates(['Matricula'], keep='last')
+df = df.sort_values(['Franquia','DataHora','Matricula'], kind='mergesort').reset_index(drop=True)
 df['Data'] = df['DataHora'].dt.strftime('%d/%m/%Y %H:%M:%S')
 df['Dia'] = df['DataHora'].dt.strftime('%Y-%m-%d'); df['Mes'] = df['Dia'].str[:7]
 df[COLS].to_csv(old, index=False, encoding='utf-8')
@@ -45,13 +45,13 @@ last = df.Dia.max(); cutoff = (pd.Timestamp(last) - pd.Timedelta(days=13)).strft
 rec = d[d.Dia >= cutoff]
 recent = [[r.Dia, r.Franquia, int(r.DataHora.hour), r.Vendedor, int(r.fil)] for r in rec.itertuples()]
 payload = {
-  'atualizado_em': dt.datetime.now().strftime('%d/%m/%Y'),
+  'atualizado_em': (dt.datetime.utcnow()-dt.timedelta(hours=3)).strftime('%d/%m/%Y %H:%M'),
   'periodo': {'inicio': df.Dia.min(), 'fim': df.Dia.max()},
   'unidades': units, 'total': int(len(df)),
   'daily': daily.values.tolist(),
   'vend': vend.values.tolist(),
   'recent': recent,
-  'hoje': dt.datetime.now().strftime('%Y-%m-%d'),
+  'hoje': (dt.datetime.utcnow()-dt.timedelta(hours=3)).strftime('%Y-%m-%d'),
 }
 json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
 tpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template.html'), encoding='utf-8').read()
