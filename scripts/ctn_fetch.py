@@ -17,10 +17,18 @@ COLS = ['Franquia', 'Matricula', 'Filiado', 'Telefone', 'Nome', 'Data', 'Vendedo
 cookie = os.environ.get('CTN_COOKIE', '').strip()
 if not cookie:
     sys.exit('CTN_COOKIE não definido (Settings → Secrets and variables → Actions).')
+mc_cookie = os.environ.get('MINHACONTA_COOKIE', '').strip()
 
 s = requests.Session()
+def load_cookies(header, domain):
+    for part in header.split(';'):
+        if '=' in part:
+            k, v = part.strip().split('=', 1)
+            s.cookies.set(k.strip(), v.strip(), domain=domain, path='/')
+load_cookies(cookie, 'ctn.sistematodos.com.br')
+if mc_cookie:
+    load_cookies(mc_cookie, 'minhaconta.sistematodos.com.br')
 s.headers.update({
-    'Cookie': cookie,
     'User-Agent': os.environ.get('CTN_UA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36'),
     'Accept-Language': 'pt-BR,pt;q=0.9',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -30,8 +38,24 @@ s.headers.update({
 def now_br():
     return dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=3)
 
+def follow_forms(r, depth=0):
+    """Se a resposta for um formulário de auto-envio (callback do login único), envia e continua."""
+    ct = r.headers.get('content-type', '')
+    if depth > 4 or not ct.startswith('text/html'):
+        return r
+    m = re.search(r'<form[^>]*action=["\']([^"\']+)["\'][^>]*>(.*?)</form>', r.text, re.S | re.I)
+    if not m or 'name="code"' not in m.group(2) and "name='code'" not in m.group(2):
+        return r
+    action = m.group(1).replace('&amp;', '&')
+    if action.startswith('/'):
+        action = re.match(r'https?://[^/]+', r.url).group(0) + action
+    fields = dict(re.findall(r'name=["\']([^"\']+)["\']\s+value=["\']([^"\']*)["\']', m.group(2)))
+    fields = {k: v.replace('&amp;', '&') for k, v in fields.items()}
+    r2 = s.post(action, data=fields, allow_redirects=True, timeout=60)
+    return follow_forms(r2, depth + 1)
+
 def get_page():
-    r = s.get(REPORT, allow_redirects=True, timeout=60)
+    r = follow_forms(s.get(REPORT, allow_redirects=True, timeout=60))
     if 'minhaconta.sistematodos.com.br' in r.url or 'Bem-vindo de volta' in r.text:
         sys.exit('SESSÃO EXPIRADA: o CTN pediu login. Faça login com "Lembrar de mim", copie o cookie novamente e atualize o secret CTN_COOKIE.')
     if 'ddlSubFranquia' in r.text:
@@ -80,7 +104,10 @@ def fetch_xlsx(a, b):
     ]
     last = None
     for params in tries:
-        r = s.get(url, params=params, timeout=120)
+        r = follow_forms(s.get(url, params=params, timeout=120))
+        if r.content[:2] != b'PK' and 'minhaconta' in r.url:
+            # sessão do minhaconta necessária/expirada
+            print('O gerador de relatório pediu login no minhaconta.' + ('' if mc_cookie else ' Cadastre o secret MINHACONTA_COOKIE (cookie do site minhaconta.sistematodos.com.br).'))
         ctype = r.headers.get('content-type', '')
         if r.content[:2] == b'PK':
             break
