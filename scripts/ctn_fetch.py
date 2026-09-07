@@ -54,12 +54,43 @@ def follow_forms(r, depth=0):
     r2 = s.post(action, data=fields, allow_redirects=True, timeout=60)
     return follow_forms(r2, depth + 1)
 
+def hidden_fields(html):
+    return {k: v.replace('&amp;', '&').replace('&quot;', '"') for k, v in re.findall(r'<input[^>]*type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"', html)}
+
+def confirm_franchise(r):
+    """Tela 'Confirmar Franquia': escolhe Sub-Franquia EQUATORIAL (5) e CARTAO DE BELEM CENTRO (417) e confirma."""
+    url = r.url
+    html = r.text
+    # 1) selecionar a sub-franquia (autopostback)
+    data = hidden_fields(html)
+    data.update({'__EVENTTARGET': 'ctl00$ContentPlaceHolder1$ddlSubFranquia', '__EVENTARGUMENT': '',
+                 'ctl00$ContentPlaceHolder1$ddlSubFranquia': '5'})
+    r2 = s.post(url, data=data, allow_redirects=True, timeout=60)
+    html2 = r2.text
+    opts = dict((t.strip(), v) for v, t in re.findall(r'<option[^>]*value="(\d+)"[^>]*>([^<]+)</option>', html2))
+    fr = opts.get('CARTAO DE BELEM CENTRO') or next(iter([v for t, v in opts.items() if t.startswith('CARTAO DE')]), '417')
+    btn = re.search(r'<input[^>]*type="submit"[^>]*name="([^"]+)"[^>]*value="Confirmar"', html2) or re.search(r'<input[^>]*name="([^"]+)"[^>]*type="submit"[^>]*value="Confirmar"', html2)
+    data = hidden_fields(html2)
+    data.update({'__EVENTTARGET': '', '__EVENTARGUMENT': '',
+                 'ctl00$ContentPlaceHolder1$ddlSubFranquia': '5',
+                 'ctl00$ContentPlaceHolder1$ddlFranquia': fr})
+    if btn:
+        data[btn.group(1)] = 'Confirmar'
+    else:
+        data['ctl00$ContentPlaceHolder1$btnConfirmar'] = 'Confirmar'
+    r3 = s.post(r2.url, data=data, allow_redirects=True, timeout=60)
+    print('Tela "Confirmar Franquia" resolvida automaticamente (%s).' % ('ok' if 'ddlSubFranquia' not in r3.text else 'ainda pendente'))
+    return r3
+
 def get_page():
     r = follow_forms(s.get(REPORT, allow_redirects=True, timeout=60))
+    if 'ddlSubFranquia' in r.text:
+        confirm_franchise(r)
+        r = follow_forms(s.get(REPORT, allow_redirects=True, timeout=60))
     if 'minhaconta.sistematodos.com.br' in r.url or 'Bem-vindo de volta' in r.text:
         sys.exit('SESSÃO EXPIRADA: o CTN pediu login. Faça login com "Lembrar de mim", copie o cookie novamente e atualize o secret CTN_COOKIE.')
     if 'ddlSubFranquia' in r.text:
-        sys.exit('O CTN está na tela "Confirmar Franquia" — abra o CTN no navegador, confirme uma franquia e copie o cookie de novo.')
+        sys.exit('Não consegui passar da tela "Confirmar Franquia" automaticamente — abra o CTN no navegador, confirme uma franquia e copie o cookie de novo.')
     return r.text
 
 def current_franchise(html):
