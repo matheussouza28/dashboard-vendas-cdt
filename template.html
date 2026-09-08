@@ -52,6 +52,9 @@ main{max-width:1200px;margin:0 auto;padding:14px 14px 40px}
 .filters label{font-size:12px;color:var(--text-2)}
 .filters select,.filters button{font:inherit;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
 .filters button[aria-pressed="true"]{background:var(--surface-2);border-color:var(--text-3);font-weight:600}
+.filters .range{display:inline-flex;gap:6px;align-items:center;padding-left:6px;border-left:1px solid var(--border);margin-left:2px}
+.filters input[type=date]{font:inherit;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;min-width:0}
+@media(max-width:600px){.filters .range{border-left:0;padding-left:0;margin-left:0;flex-wrap:wrap}}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
 .kpi .l{font-size:12px;color:var(--text-2)}
@@ -145,6 +148,7 @@ body.mode-report #report{display:block}
     <button type="button" data-preset="prev">Mês anterior</button>
     <button type="button" data-preset="30">Últimos 30 dias</button>
     <button type="button" data-preset="ytd">Ano 2026</button>
+    <span class="range"><label for="de">De</label><input type="date" id="de"><label for="ate">até</label><input type="date" id="ate"><button type="button" id="btn-range">Aplicar</button></span>
   </div>
   <section class="kpis" id="kpis"></section>
   <div class="grid two">
@@ -227,10 +231,14 @@ let unit='ALL', range={a:LAST.slice(0,7)+'-01', b:LAST, kind:'mtd'};
 const params=new URLSearchParams(location.search); const h=location.hash.replace('#','').toUpperCase().replace(/_/g,' ');
 const initU=(params.get('unidade')||h||'').toUpperCase().replace(/_/g,' ');
 if(UNITS.includes(initU)) unit=initU;
+// Acumulado entre duas datas via URL: ?de=AAAA-MM-DD&ate=AAAA-MM-DD (o bot do WhatsApp manda links assim)
+const clampRange=(a,b)=>{if(!a&&!b)return null;a=a||FIRST;b=b||LAST;if(a>b)[a,b]=[b,a];if(a<FIRST)a=FIRST;if(b>LAST)b=LAST;return {a,b,kind:'custom'};};
+const setUrl=u=>{try{history.replaceState(null,'',u);}catch(e){}}; // arquivo local/data: não deixa reescrever a URL
+{const q=clampRange(params.get('de'),params.get('ate'));if(q)range=q;}
 
 // ---------- tabs ----------
 const tabs=document.getElementById('tabs');
-function mkTab(id,label,color){const b=document.createElement('button');b.className='tab';b.role='tab';b.dataset.u=id;if(color){const i=document.createElement('span');i.className='dot';i.style.background=color;b.appendChild(i);}b.appendChild(document.createTextNode(label));b.onclick=()=>{if(id==='REPORT'){document.body.classList.add('mode-report');document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.u==='REPORT'));history.replaceState(null,'','#relatorio');renderReport();return;}document.body.classList.remove('mode-report');unit=id;history.replaceState(null,'',id==='ALL'?location.pathname:'#'+id.toLowerCase().replace(/ /g,'_'));render();};tabs.appendChild(b);}
+function mkTab(id,label,color){const b=document.createElement('button');b.className='tab';b.role='tab';b.dataset.u=id;if(color){const i=document.createElement('span');i.className='dot';i.style.background=color;b.appendChild(i);}b.appendChild(document.createTextNode(label));b.onclick=()=>{if(id==='REPORT'){document.body.classList.add('mode-report');document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.u==='REPORT'));history.replaceState(null,'','#relatorio');renderReport();return;}document.body.classList.remove('mode-report');unit=id;history.replaceState(null,'',(location.search||'')+(id==='ALL'?(location.search?'':location.pathname):'#'+id.toLowerCase().replace(/ /g,'_')));render();};tabs.appendChild(b);}
 mkTab('ALL','Todas as unidades');UNITS.forEach(u=>mkTab(u,nice(u),colorOf(u)));mkTab('REPORT','📋 Relatório do dia');
 
 // ---------- filters ----------
@@ -245,8 +253,16 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
   if(p==='prev'){const d=new Date(+lm.slice(0,4),+lm.slice(5,7)-1,0);const m=iso(d).slice(0,7);range={a:m+'-01',b:iso(d),kind:'prev'};}
   if(p==='30') range={a:addDays(LAST,-29),b:LAST,kind:'30'};
   if(p==='ytd') range={a:FIRST,b:LAST,kind:'ytd'};
+  setUrl(location.pathname+location.hash);
   render();
 });
+// ---------- acumulado entre duas datas ----------
+const deEl=document.getElementById('de'), ateEl=document.getElementById('ate'), btnRange=document.getElementById('btn-range');
+[deEl,ateEl].forEach(i=>{i.min=FIRST;i.max=LAST;});
+function applyRange(){const r=clampRange(deEl.value,ateEl.value);if(!r)return;range=r;setUrl('?de='+r.a+'&ate='+r.b+location.hash);render();}
+btnRange.onclick=applyRange;
+deEl.onchange=ateEl.onchange=()=>{if(deEl.value&&ateEl.value)applyRange();};
+[deEl,ateEl].forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')applyRange();}));
 
 // ---------- helpers ----------
 function inRange(d,r){return d>=r.a&&d<=r.b;}
@@ -266,6 +282,8 @@ function render(){
   document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',inRep?t.dataset.u==='REPORT':t.dataset.u===unit));
   if(inRep&&typeof renderReport==='function')renderReport();
   document.querySelectorAll('[data-preset]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.preset===range.kind));
+  btnRange.setAttribute('aria-pressed',range.kind==='custom');
+  deEl.value=range.a;ateEl.value=range.b; // os campos sempre mostram o período ativo
   if(range.kind==='month'||range.kind==='mtd'||range.kind==='prev') sel.value=range.a.slice(0,7);
   document.getElementById('title').textContent=unit==='ALL'?'Dashboard de Vendas — Cartão de Todos':'Dashboard de Vendas — '+nice(unit);
   document.getElementById('meta').textContent='Atualizado em '+D.atualizado_em+' · dados de '+br(FIRST)+' a '+br(LAST);
