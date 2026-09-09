@@ -2,9 +2,11 @@ name: Atualizar dashboard de vendas
 
 on:
   schedule:
-    # De hora em hora, das 07h às 22h (horário de Brasília = UTC-3)
+    # De hora em hora, das 07h05 às 23h05 (horário de Brasília = UTC-3)
     - cron: '5 10-23 * * *'
-    - cron: '5 0-1 * * *'
+    - cron: '5 0-2 * * *'
+    # Última do dia, às 23h50 de Brasília, para fechar o dia completo
+    - cron: '50 2 * * *'
   workflow_dispatch:
 
 permissions:
