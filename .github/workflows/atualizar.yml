@@ -2,9 +2,10 @@ name: Atualizar dashboard de vendas
 
 on:
   schedule:
-    # De hora em hora, das 07h às 22h (horário de Brasília = UTC-3)
-    - cron: '5 10-23 * * *'
-    - cron: '5 0-1 * * *'
+    # A cada 30 min, das 06:15 às 23:45 (horário de Brasília = UTC-3).
+    # O GitHub só aceita cron em UTC, por isso a janela vira duas linhas.
+    - cron: '15,45 9-23 * * *'   # UTC 09:15–23:45  ->  BRT 06:15–20:45
+    - cron: '15,45 0-2 * * *'    # UTC 00:15–02:45  ->  BRT 21:15–23:45
   workflow_dispatch:
 
 permissions:
