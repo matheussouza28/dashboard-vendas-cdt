@@ -153,6 +153,12 @@ def fetch_xlsx(a, b):
     wb = openpyxl.load_workbook(io.BytesIO(r.content), read_only=True)
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))
+    # Unidade sem nenhuma venda no periodo: o CTN devolve a planilha vazia, as
+    # vezes sem nem a linha de cabecalho. Isso nao e erro — e so um dia em que
+    # aquela unidade ainda nao vendeu, comum de manha. Antes o script morria
+    # aqui com IndexError e derrubava a atualizacao inteira do dashboard.
+    if not rows or not any(c is not None and str(c).strip() for c in rows[0]):
+        return []
     header = [str(c or '').strip() for c in rows[0]]
     if header[:9] != COLS:
         sys.exit('Layout inesperado do relatório: %s' % header)
