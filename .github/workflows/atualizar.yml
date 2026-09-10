@@ -44,4 +44,12 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add -A
           git commit -m "Atualização automática $(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')" || echo "nada a commitar"
+          # Se alguem commitou na branch enquanto este job rodava, o push volta
+          # rejeitado. Rebase por cima e tenta de novo. Se o rebase conflitar,
+          # falha alto em vez de fingir sucesso: sem isso o HEAD fica destacado
+          # no commit do outro e o push seguinte passa como no-op, descartando
+          # esta rodada em silencio. A proxima rodada regenera tudo em 30 min.
+          git push && exit 0
+          echo "Push rejeitado - rebase na branch remota e nova tentativa."
+          git pull --rebase origin main || { git rebase --abort 2>/dev/null || true; echo "::error::Conflito no rebase; nada publicado nesta rodada."; exit 1; }
           git push
