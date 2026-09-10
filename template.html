@@ -52,9 +52,6 @@ main{max-width:1200px;margin:0 auto;padding:14px 14px 40px}
 .filters label{font-size:12px;color:var(--text-2)}
 .filters select,.filters button{font:inherit;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
 .filters button[aria-pressed="true"]{background:var(--surface-2);border-color:var(--text-3);font-weight:600}
-.filters .range{display:inline-flex;gap:6px;align-items:center;padding-left:6px;border-left:1px solid var(--border);margin-left:2px}
-.filters input[type=date]{font:inherit;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;min-width:0}
-@media(max-width:600px){.filters .range{border-left:0;padding-left:0;margin-left:0;flex-wrap:wrap}}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
 .kpi .l{font-size:12px;color:var(--text-2)}
@@ -88,11 +85,12 @@ th,td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;whit
 th{font-size:12px;color:var(--text-2);font-weight:600;position:sticky;top:0;background:var(--surface)}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .tbl-wrap{overflow:auto;max-height:420px}
-.bar-cell{display:flex;align-items:center;gap:8px}
-td.wrap{white-space:nowrap}
-@media(max-width:600px){td.wrap{white-space:normal;min-width:150px}}
-@media(max-width:600px){.col-x{display:none}.bar-cell .b{max-width:40px}}
-.bar-cell .b{height:8px;border-radius:4px;background:var(--accent);flex:none}
+.bar-cell{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.bar-cell .who{min-width:0}
+td.wrap{white-space:normal;overflow-wrap:break-word}
+.sub-unit{font-size:11px;color:var(--text-3);margin-top:2px}
+@media(max-width:600px){.col-x{display:none}.bar-cell .b{max-width:34px}}
+.bar-cell .b{height:8px;border-radius:4px;background:var(--accent);flex:0 0 auto;max-width:60px;margin-top:5px}
 .toggle{font:inherit;font-size:12px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--text-2);cursor:pointer}
 .small{font-size:12px;color:var(--text-3)}
 footer{max-width:1200px;margin:10px auto 0;padding:0 14px;font-size:12px;color:var(--text-3)}
@@ -148,7 +146,6 @@ body.mode-report #report{display:block}
     <button type="button" data-preset="prev">Mês anterior</button>
     <button type="button" data-preset="30">Últimos 30 dias</button>
     <button type="button" data-preset="ytd">Ano 2026</button>
-    <span class="range"><label for="de">De</label><input type="date" id="de"><label for="ate">até</label><input type="date" id="ate"><button type="button" id="btn-range">Aplicar</button></span>
   </div>
   <section class="kpis" id="kpis"></section>
   <div class="grid two">
@@ -182,7 +179,7 @@ body.mode-report #report{display:block}
   </div>
   <section id="report">
     <div class="rep-controls">
-      <span class="seg"><button type="button" id="rep-5" aria-pressed="true">5 unidades</button><button type="button" id="rep-os">Osasco</button></span>
+      <span class="seg" id="rep-groups"></span>
       <label for="rep-date">Dia</label><input type="date" id="rep-date">
       <label for="rep-meta">Meta da semana</label><input type="number" id="rep-meta" min="0" step="10">
       <button type="button" class="primary" id="rep-png">Baixar imagem (PNG)</button>
@@ -209,7 +206,7 @@ const D=JSON.parse(document.getElementById('data').textContent);
 const UNITS=D.unidades; // fixed order → fixed colors
 const COLORS=['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)'];
 const colorOf=u=>COLORS[UNITS.indexOf(u)%COLORS.length];
-const NICE={'BELEM CENTRO':'Belém Centro','MANAUS CENTRO':'Manaus Centro','MANAUS NORTE':'Manaus Norte','OSASCO':'Osasco','PARINTINS':'Parintins','PORTO ALEGRE NORTE':'Porto Alegre Norte'};
+const NICE={'BELEM CENTRO':'Belém Centro','MANAUS CENTRO':'Manaus Centro','MANAUS NORTE':'Manaus Norte','OSASCO':'Osasco','PARINTINS':'Parintins','PORTO ALEGRE NORTE':'Porto Alegre Norte','ALVORADA':'Alvorada'};
 const nice=u=>NICE[u]||u;
 const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const MESES_L=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -231,15 +228,11 @@ let unit='ALL', range={a:LAST.slice(0,7)+'-01', b:LAST, kind:'mtd'};
 const params=new URLSearchParams(location.search); const h=location.hash.replace('#','').toUpperCase().replace(/_/g,' ');
 const initU=(params.get('unidade')||h||'').toUpperCase().replace(/_/g,' ');
 if(UNITS.includes(initU)) unit=initU;
-// Acumulado entre duas datas via URL: ?de=AAAA-MM-DD&ate=AAAA-MM-DD (o bot do WhatsApp manda links assim)
-const clampRange=(a,b)=>{if(!a&&!b)return null;a=a||FIRST;b=b||LAST;if(a>b)[a,b]=[b,a];if(a<FIRST)a=FIRST;if(b>LAST)b=LAST;return {a,b,kind:'custom'};};
-const setUrl=u=>{try{history.replaceState(null,'',u);}catch(e){}}; // arquivo local/data: não deixa reescrever a URL
-{const q=clampRange(params.get('de'),params.get('ate'));if(q)range=q;}
 
 // ---------- tabs ----------
 const tabs=document.getElementById('tabs');
-function mkTab(id,label,color){const b=document.createElement('button');b.className='tab';b.role='tab';b.dataset.u=id;if(color){const i=document.createElement('span');i.className='dot';i.style.background=color;b.appendChild(i);}b.appendChild(document.createTextNode(label));b.onclick=()=>{if(id==='REPORT'){document.body.classList.add('mode-report');document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.u==='REPORT'));history.replaceState(null,'','#relatorio');renderReport();return;}document.body.classList.remove('mode-report');unit=id;history.replaceState(null,'',(location.search||'')+(id==='ALL'?(location.search?'':location.pathname):'#'+id.toLowerCase().replace(/ /g,'_')));render();};tabs.appendChild(b);}
-mkTab('ALL','Todas as unidades');UNITS.forEach(u=>mkTab(u,nice(u),colorOf(u)));mkTab('REPORT','📋 Relatório do dia');
+function mkTab(id,label,color){const b=document.createElement('button');b.className='tab';b.role='tab';b.dataset.u=id;if(color){const i=document.createElement('span');i.className='dot';i.style.background=color;b.appendChild(i);}b.appendChild(document.createTextNode(label));b.onclick=()=>{if(id==='REPORT'){document.body.classList.add('mode-report');document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.u==='REPORT'));history.replaceState(null,'','#relatorio');renderReport();return;}document.body.classList.remove('mode-report');unit=id;history.replaceState(null,'',id==='ALL'?location.pathname:'#'+id.toLowerCase().replace(/ /g,'_'));render();};tabs.appendChild(b);}
+if(UNITS.length>1){mkTab('ALL','Todas as unidades');UNITS.forEach(u=>mkTab(u,nice(u),colorOf(u)));}else{mkTab('ALL',nice(UNITS[0]),colorOf(UNITS[0]));}mkTab('REPORT','📋 Relatório do dia');
 
 // ---------- filters ----------
 const sel=document.getElementById('mes');
@@ -253,16 +246,8 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
   if(p==='prev'){const d=new Date(+lm.slice(0,4),+lm.slice(5,7)-1,0);const m=iso(d).slice(0,7);range={a:m+'-01',b:iso(d),kind:'prev'};}
   if(p==='30') range={a:addDays(LAST,-29),b:LAST,kind:'30'};
   if(p==='ytd') range={a:FIRST,b:LAST,kind:'ytd'};
-  setUrl(location.pathname+location.hash);
   render();
 });
-// ---------- acumulado entre duas datas ----------
-const deEl=document.getElementById('de'), ateEl=document.getElementById('ate'), btnRange=document.getElementById('btn-range');
-[deEl,ateEl].forEach(i=>{i.min=FIRST;i.max=LAST;});
-function applyRange(){const r=clampRange(deEl.value,ateEl.value);if(!r)return;range=r;setUrl('?de='+r.a+'&ate='+r.b+location.hash);render();}
-btnRange.onclick=applyRange;
-deEl.onchange=ateEl.onchange=()=>{if(deEl.value&&ateEl.value)applyRange();};
-[deEl,ateEl].forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')applyRange();}));
 
 // ---------- helpers ----------
 function inRange(d,r){return d>=r.a&&d<=r.b;}
@@ -282,10 +267,8 @@ function render(){
   document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',inRep?t.dataset.u==='REPORT':t.dataset.u===unit));
   if(inRep&&typeof renderReport==='function')renderReport();
   document.querySelectorAll('[data-preset]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.preset===range.kind));
-  btnRange.setAttribute('aria-pressed',range.kind==='custom');
-  deEl.value=range.a;ateEl.value=range.b; // os campos sempre mostram o período ativo
   if(range.kind==='month'||range.kind==='mtd'||range.kind==='prev') sel.value=range.a.slice(0,7);
-  document.getElementById('title').textContent=unit==='ALL'?'Dashboard de Vendas — Cartão de Todos':'Dashboard de Vendas — '+nice(unit);
+  document.getElementById('title').textContent=unit==='ALL'?(D.titulo||'Dashboard de Vendas — Cartão de Todos'):(UNITS.length===1?(D.titulo||'Dashboard de Vendas'):'Dashboard de Vendas — '+nice(unit));
   document.getElementById('meta').textContent='Atualizado em '+D.atualizado_em+' · dados de '+br(FIRST)+' a '+br(LAST);
   document.getElementById('foot-meta').textContent='Base: '+fmt(D.total)+' vendas · '+UNITS.length+' unidades.';
   const plabel=br(range.a)+' – '+br(range.b);
@@ -325,7 +308,7 @@ function renderDaily(rows,plabel){
   const map={};rows.forEach(x=>{map[x[1]+'|'+x[0]]=x[2];});
   const data=series.map(u=>dates.map(d=>map[u+'|'+d]||0));
   const total=dates.map((d,i)=>data.reduce((s,a)=>s+a[i],0));
-  document.getElementById('daily-sub').textContent=plabel+(unit==='ALL'?' · por unidade':'');
+  document.getElementById('daily-sub').textContent=plabel+(unit==='ALL'&&UNITS.length>1?' · por unidade':'');
   const lg=document.getElementById('daily-legend');lg.replaceChildren();
   if(series.length>1)series.forEach(u=>{const s=el('span');const i=el('i');i.style.background=colorOf(u);s.appendChild(i);s.appendChild(document.createTextNode(nice(u)));lg.appendChild(s);});
   const W=cw('daily-chart'),narrow=W<560,H=narrow?240:280,ml=36,mr=series.length>1?(narrow?86:110):24,mt=10,mb=28;const iw=W-ml-mr,ih=H-mt-mb;
@@ -435,7 +418,7 @@ function renderRank(){
   if(recMin&&range.a>=recMin){
     const agg={};recent.forEach(r=>{if(r[0]<range.a||r[0]>range.b)return;if(unit!=='ALL'&&r[1]!==unit)return;const k=r[3]+'|'+r[1];agg[k]=agg[k]||[r[3],r[1],0,0,0];agg[k][2]++;agg[k][3]+=r[4];agg[k][4]+=1-r[4];});
     const list=Object.values(agg).sort((a,b)=>b[2]-a[2]);
-    document.getElementById('rank-sub').textContent=(range.a===range.b?'vendedores do dia '+br(range.a):br(range.a)+' – '+br(range.b))+(unit==='ALL'?' · todas as unidades':'');
+    document.getElementById('rank-sub').textContent=(range.a===range.b?'vendedores do dia '+br(range.a):br(range.a)+' – '+br(range.b))+(unit==='ALL'&&UNITS.length>1?' · todas as unidades':'');
     return drawRank(wrap,list);
   }
   // vendedor data is monthly → use months overlapping the range
@@ -443,13 +426,13 @@ function renderRank(){
   const fullMonths=ms.every(m=>{const first=m+'-01';const last=m===LAST.slice(0,7)?LAST:iso(new Date(+m.slice(0,4),+m.slice(5,7),0));return range.a<=first&&range.b>=last;});
   const agg={};vend.forEach(x=>{if(!ms.includes(x[0]))return;if(unit!=='ALL'&&x[1]!==unit)return;const k=x[2]+'|'+x[1];agg[k]=agg[k]||[x[2],x[1],0,0,0];agg[k][2]+=x[3];agg[k][3]+=x[4];agg[k][4]+=x[5];});
   const list=Object.values(agg).sort((a,b)=>b[2]-a[2]);
-  document.getElementById('rank-sub').textContent=(fullMonths?'':'⚠ ranking por mês completo: ')+ms.map(m=>MESES[+m.slice(5,7)-1]).join(', ')+' 2026'+(unit==='ALL'?' · todas as unidades':'');
+  document.getElementById('rank-sub').textContent=(fullMonths?'':'⚠ ranking por mês completo: ')+ms.map(m=>MESES[+m.slice(5,7)-1]).join(', ')+' 2026'+(unit==='ALL'&&UNITS.length>1?' · todas as unidades':'');
   drawRank(wrap,list);
 }
 function drawRank(wrap,list){
   const max=list[0]?.[2]||1;const show=rankAll?list:list.slice(0,15);
-  const t=el('table');const th=el('tr');const hs=['#','Vendedor',...(unit==='ALL'?['Unidade']:[]),'Vendas','Fil.','Refil.'];hs.forEach((h,i)=>{const c=el('th',i>=(unit==='ALL'?3:2)?'n':'',h);if(h==='Fil.'||h==='Refil.'||h==='Unidade')c.classList.add('col-x');th.appendChild(c);});t.appendChild(th);
-  show.forEach((r,i)=>{const tr=el('tr');tr.appendChild(el('td',null,String(i+1)));const td=el('td','wrap');const bc=el('div','bar-cell');const b=el('div','b');b.style.width=Math.max(4,r[2]/max*70)+'px';b.style.background=unit==='ALL'?colorOf(r[1]):'var(--accent)';bc.appendChild(b);bc.appendChild(el('span',null,r[0]));td.appendChild(bc);tr.appendChild(td);if(unit==='ALL')tr.appendChild(el('td','col-x',nice(r[1])));tr.appendChild(el('td','n',fmt(r[2])));tr.appendChild(el('td','n col-x',fmt(r[3])));tr.appendChild(el('td','n col-x',fmt(r[4])));t.appendChild(tr);});
+  const t=el('table');const th=el('tr');const multi=unit==='ALL'&&UNITS.length>1;const hs=['#','Vendedor','Vendas','Fil.','Refil.'];hs.forEach((h,i)=>{const c=el('th',i>=2?'n':'',h);if(h==='Fil.'||h==='Refil.'||h==='Unidade')c.classList.add('col-x');th.appendChild(c);});t.appendChild(th);
+  show.forEach((r,i)=>{const tr=el('tr');tr.appendChild(el('td',null,String(i+1)));const td=el('td','wrap');const bc=el('div','bar-cell');const b=el('div','b');b.style.width=Math.max(4,r[2]/max*70)+'px';b.style.background=unit==='ALL'?colorOf(r[1]):'var(--accent)';bc.appendChild(b);const who=el('div','who');who.appendChild(el('span',null,r[0]));if(multi)who.appendChild(el('div','sub-unit',nice(r[1])));bc.appendChild(who);td.appendChild(bc);tr.appendChild(td);tr.appendChild(el('td','n',fmt(r[2])));tr.appendChild(el('td','n col-x',fmt(r[3])));tr.appendChild(el('td','n col-x',fmt(r[4])));t.appendChild(tr);});
   wrap.appendChild(t);
   if(!show.length)wrap.appendChild(el('div','small','Sem vendas no período.'));
 }
@@ -469,28 +452,29 @@ function renderUnits(rows,prows,pr){
 render();
 
 // ---------- relatório do dia ----------
-const REP5=UNITS.filter(u=>u!=='OSASCO');
-let repMode='5';
+const GRUPOS=(D.grupos&&D.grupos.length)?D.grupos:[{nome:'5 unidades',titulo:'Relatório de Vendas',unidades:UNITS.filter(u=>u!=='OSASCO'),meta_semana:1000},{nome:'Osasco',titulo:'Relatório de Vendas Osasco',unidades:['OSASCO'],meta_semana:250}].filter(g=>g.unidades.length);
+let repIdx=0;
 const repDate=document.getElementById('rep-date'),repMeta=document.getElementById('rep-meta');
 repDate.value=DAY;repDate.min=FIRST;repDate.max=HOJE>LAST?HOJE:LAST;
-function metaKey(){return 'meta_'+repMode;}
-function loadMeta(){let v=null;try{v=localStorage.getItem(metaKey());}catch(e){}return v?+v:(repMode==='5'?1000:250);}
+const segEl=document.getElementById('rep-groups');
+GRUPOS.forEach((g,i)=>{const b=document.createElement('button');b.type='button';b.id='rep-g'+i;b.textContent=g.nome;b.setAttribute('aria-pressed',i===0);b.onclick=()=>{repIdx=i;repMeta.value=loadMeta();renderReport();};segEl.appendChild(b);});
+if(GRUPOS.length<2)segEl.classList.add('hidden');
+function metaKey(){return 'meta_g'+repIdx;}
+function loadMeta(){let v=null;try{v=localStorage.getItem(metaKey());}catch(e){}return v?+v:(+GRUPOS[repIdx].meta_semana||0);}
 repMeta.value=loadMeta();
 repMeta.onchange=()=>{try{localStorage.setItem(metaKey(),repMeta.value);}catch(e){}renderReport();};
 repDate.onchange=renderReport;
-document.getElementById('rep-5').onclick=()=>{repMode='5';repMeta.value=loadMeta();renderReport();};
-document.getElementById('rep-os').onclick=()=>{repMode='os';repMeta.value=loadMeta();renderReport();};
 function weekStart(d){const dt=pd(d);const back=(dt.getDay()-3+7)%7;dt.setDate(dt.getDate()-back);return iso(dt);}
 function renderReport(){
   const rw=document.querySelector('.rep-wrap');const z=Math.min(1,(rw.clientWidth||940)/940);document.getElementById('rep').style.zoom=z;
-  document.getElementById('rep-5').setAttribute('aria-pressed',repMode==='5');document.getElementById('rep-os').setAttribute('aria-pressed',repMode==='os');
-  const day=repDate.value||DAY;const units=repMode==='5'?REP5:['OSASCO'];const meta=+repMeta.value||0;
+  GRUPOS.forEach((g,i)=>{const b=document.getElementById('rep-g'+i);if(b)b.setAttribute('aria-pressed',i===repIdx);});
+  const G=GRUPOS[repIdx];const day=repDate.value||DAY;const units=G.unidades;const meta=+repMeta.value||0;
   const ws=weekStart(day);
   const dayRows=daily.filter(x=>x[0]===day&&units.includes(x[1]));
   const per=units.map(u=>[u,sum(dayRows.filter(x=>x[1]===u),2)]).sort((a,b)=>b[1]-a[1]);
   const totDay=sum(dayRows,2);
   const totWeek=sum(daily.filter(x=>x[0]>=ws&&x[0]<=day&&units.includes(x[1])),2);
-  document.getElementById('rep-title').textContent=(repMode==='os'?'Relatório de Vendas Osasco — ':'Relatório de Vendas — ')+br(day);
+  document.getElementById('rep-title').textContent=G.titulo+' — '+br(day);
   document.getElementById('rep-meta-l').textContent='Meta da Semana: '+fmt(meta)+' vendas';
   const t=document.getElementById('rep-table');t.replaceChildren();const th=el('tr');th.appendChild(el('th',null,'Franquia'));th.appendChild(el('th','n','Vendas'));t.appendChild(th);
   per.forEach(([u,v],i)=>{const tr=el('tr');const td=el('td');if(i<3){const m=el('span','medal m'+(i+1),String(i+1));td.appendChild(m);}else td.appendChild(el('span','rk','#'+(i+1)));td.appendChild(document.createTextNode(u));tr.appendChild(td);tr.appendChild(el('td','n',fmt(v)));t.appendChild(tr);});
@@ -506,7 +490,7 @@ document.getElementById('rep-png').onclick=async function(){
   const node=document.getElementById('rep');const day=repDate.value||DAY;
   if(!window.html2canvas){alert('Gerador de imagem indisponível; use Imprimir → salvar como PDF.');return;}
   this.disabled=true;this.textContent='Gerando…';
-  try{const c=await html2canvas(node,{scale:2,backgroundColor:'#0f4a2a',useCORS:true});const name='relatorio_vendas_'+(repMode==='os'?'osasco_':'')+day.replace(/-/g,'')+'.png';
+  try{const c=await html2canvas(node,{scale:2,backgroundColor:'#0f4a2a',useCORS:true});const name='relatorio_vendas_'+G.nome.toLowerCase().replace(/[^a-z0-9]+/g,'_')+'_'+day.replace(/-/g,'')+'.png';
     const dl=(window.claude&&window.claude.use)?await window.claude.use('downloads'):null;
     if(dl){const blob=await new Promise(r=>c.toBlob(r,'image/png'));try{await dl.save({filename:name,data:blob});}catch(e){if(e&&e.code!=='declined')throw e;}}
     else{const a=document.createElement('a');a.download=name;a.href=c.toDataURL('image/png');a.click();}}
