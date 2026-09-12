@@ -1,8 +1,8 @@
 {
- "atualizado_em": "11/09/2026 21:40",
+ "atualizado_em": "12/09/2026 01:38",
  "periodo": {
   "inicio": "2026-01-01",
-  "fim": "2026-09-11"
+  "fim": "2026-09-12"
  },
  "unidades": [
   "BELEM CENTRO",
@@ -12,6 +12,6 @@
   "PARINTINS",
   "PORTO ALEGRE NORTE"
  ],
- "total": 39544,
- "hoje": "2026-09-11"
+ "total": 39546,
+ "hoje": "2026-09-12"
 }
