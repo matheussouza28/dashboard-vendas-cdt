@@ -5,7 +5,7 @@ Usa a sessão já logada do CTN (variável de ambiente CTN_COOKIE = cabeçalho C
 Período: do último dia presente em data/meta.json (inclusive) até hoje, em blocos por mês.
 Saída: src/ctn_<unidade>.csv com Franquia,Matricula,Filiado,Telefone,Nome,Data,Vendedor,Login,Prospeccao
 """
-import os, sys, re, io, json, datetime as dt
+import os, sys, re, io, json, time, datetime as dt
 import requests, openpyxl
 
 BASE = 'https://ctn.sistematodos.com.br'
@@ -13,6 +13,18 @@ REPORT = BASE + '/paginas/filiado/FiliacaoPorVendedor.aspx'
 UNITS = ['CARTAO DE BELEM CENTRO', 'CARTAO DE MANAUS CENTRO', 'CARTAO DE MANAUS NORTE',
          'CARTAO DE OSASCO', 'CARTAO DE PARINTINS', 'CARTAO DE PORTO ALEGRE NORTE']
 COLS = ['Franquia', 'Matricula', 'Filiado', 'Telefone', 'Nome', 'Data', 'Vendedor', 'Login', 'Prospeccao']
+
+# Prefixo da matrícula de cada unidade (UF + número da franquia no CTN). É a
+# prova de onde a venda veio: o cabeçalho da página pode mostrar uma franquia
+# e o relatório sair de outra, se alguém trocar a franquia da MESMA sessão
+# entre a nossa checagem e o download. Em 21/09, com CDT e Alvorada disparados
+# juntos, uma venda de Alvorada entrou no CDT como Osasco.
+# A mesma tabela está em build.py (rede de segurança). Mudou aqui, mude lá.
+PREFIXO = {
+    'BELEM CENTRO': 'PA417', 'MANAUS CENTRO': 'AM348', 'MANAUS NORTE': 'AM312',
+    'PORTO ALEGRE NORTE': 'RS329', 'OSASCO': 'SP266', 'PARINTINS': 'AM443',
+    'ALVORADA': 'RS364',
+}
 
 cookie = os.environ.get('CTN_COOKIE', '').strip()
 if not cookie:
@@ -101,6 +113,9 @@ def field(html, name):
     m = re.search(r'id="%s" value="([^"]*)"' % name, html)
     return m.group(1) if m else ''
 
+class SessaoDisputada(Exception):
+    """Outra execução trocou a franquia desta mesma sessão do CTN."""
+
 def switch_to(unit):
     html = get_page()
     if current_franchise(html) == unit:
@@ -118,7 +133,10 @@ def switch_to(unit):
     s.post(REPORT, data=data, allow_redirects=True, timeout=60)
     html = get_page()
     if current_franchise(html) != unit:
-        sys.exit('Não consegui trocar para %s (cabeçalho mostra %s)' % (unit, current_franchise(html)))
+        # Quase sempre é outra atualização usando a mesma sessão ao mesmo
+        # tempo (21/09: "cabeçalho mostra CARTAO DE PARINTINS" no Alvorada).
+        # baixar_unidade() espera e tenta de novo.
+        raise SessaoDisputada('Não consegui trocar para %s (cabeçalho mostra %s)' % (unit, current_franchise(html)))
 
 def month_chunks(start, end):
     cur = start
@@ -164,6 +182,40 @@ def fetch_xlsx(a, b):
         sys.exit('Layout inesperado do relatório: %s' % header)
     return rows[1:]
 
+def baixar_unidade(unit, start, today, tentativas=3):
+    """Linhas da unidade no período — garantindo que são DELA.
+
+    Se aparecer matrícula de outra franquia, alguém trocou a franquia da
+    sessão no meio do caminho: esperamos, trocamos de novo e rebaixamos.
+    Melhor falhar alto do que publicar venda de uma unidade na outra.
+    """
+    name = unit.replace('CARTAO DE ', '')
+    prefixo = PREFIXO.get(name)
+    if not prefixo:
+        print('AVISO: sem prefixo de matrícula para %s — download sem conferência de origem.' % name)
+    for tentativa in range(1, tentativas + 1):
+        try:
+            switch_to(unit)
+        except SessaoDisputada as e:
+            print('%s (tentativa %d/%d).' % (e, tentativa, tentativas))
+            if tentativa < tentativas:
+                time.sleep(20)
+            continue
+        linhas = []
+        for a, b in month_chunks(start, today):
+            linhas.extend(list(r) + [None] * 9 for r in fetch_xlsx(a, b))
+        linhas = [r for r in linhas if r[1]]
+        alheias = [r for r in linhas if prefixo and not str(r[1]).strip().startswith(prefixo)]
+        if not alheias:
+            return linhas
+        print('%s: %d de %d vendas são de outra franquia (ex.: %s) — a sessão trocou de franquia '
+              'durante o download (tentativa %d/%d).'
+              % (name, len(alheias), len(linhas), alheias[0][1], tentativa, tentativas))
+        if tentativa < tentativas:
+            time.sleep(20)
+    sys.exit('Desisti de %s: o relatório continuou vindo de outra franquia. Nada foi publicado — '
+             'provavelmente outra atualização está usando a mesma sessão do CTN ao mesmo tempo.' % name)
+
 def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     meta = json.load(open(os.path.join(root, 'data', 'meta.json'), encoding='utf-8'))
@@ -174,24 +226,19 @@ def main():
     out = os.path.join(root, 'src'); os.makedirs(out, exist_ok=True)
     total = 0
     for unit in UNITS:
-        switch_to(unit)
         name = unit.replace('CARTAO DE ', '')
         lines = [','.join(COLS)]
         n = 0
-        for a, b in month_chunks(start, today):
-            for r in fetch_xlsx(a, b):
-                r = list(r) + [None] * 9
-                if not r[1]:
-                    continue
-                vals = [name] + [r[i] for i in range(1, 9)]
-                d = vals[5]
-                if isinstance(d, dt.datetime):
-                    vals[5] = d.strftime('%d/%m/%Y %H:%M:%S')
-                cells = []
-                for v in vals:
-                    v = '' if v is None else str(v)
-                    cells.append('"%s"' % v.replace('"', '""') if re.search(r'[",\n;]', v) else v)
-                lines.append(','.join(cells)); n += 1
+        for r in baixar_unidade(unit, start, today):
+            vals = [name] + [r[i] for i in range(1, 9)]
+            d = vals[5]
+            if isinstance(d, dt.datetime):
+                vals[5] = d.strftime('%d/%m/%Y %H:%M:%S')
+            cells = []
+            for v in vals:
+                v = '' if v is None else str(v)
+                cells.append('"%s"' % v.replace('"', '""') if re.search(r'[",\n;]', v) else v)
+            lines.append(','.join(cells)); n += 1
         with open(os.path.join(out, 'ctn_%s.csv' % name.lower().replace(' ', '_')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines))
         print('%-20s %5d vendas (%s a %s)' % (name, n, start, today))
