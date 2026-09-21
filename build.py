@@ -12,6 +12,17 @@ repo = sys.argv[sys.argv.index('--repo')+1] if '--repo' in sys.argv else os.path
 datadir = os.path.join(repo, 'data'); os.makedirs(datadir, exist_ok=True)
 COLS = ['Franquia','Matricula','Filiado','Telefone','Nome','Data','Vendedor','Login','Prospeccao']
 
+# Prefixo da matrícula de cada unidade. Rede de segurança do ctn_fetch.py: se
+# uma venda de outra franquia passar pelo download (sessão do CTN trocada no
+# meio do caminho), ela é descartada aqui e nunca chega ao dashboard. Também
+# limpa o que já entrou antes desta checagem existir — em 21/09 uma venda de
+# Alvorada entrou no CDT como Osasco. Mesma tabela do ctn_fetch.py.
+PREFIXO = {
+    'BELEM CENTRO': 'PA417', 'MANAUS CENTRO': 'AM348', 'MANAUS NORTE': 'AM312',
+    'PORTO ALEGRE NORTE': 'RS329', 'OSASCO': 'SP266', 'PARINTINS': 'AM443',
+    'ALVORADA': 'RS364',
+}
+
 def parse_dates(s):
     s = s.astype(str).str.strip()
     num = pd.to_numeric(s, errors='coerce')
@@ -28,6 +39,14 @@ for f in sorted(glob.glob(os.path.join(src, '*.csv'))):
 df = pd.concat(frames, ignore_index=True)[COLS]
 df['DataHora'] = parse_dates(df['Data'])
 df = df.dropna(subset=['DataHora'])
+# Antes do dedup: uma linha rotulada na unidade errada não pode esconder a certa.
+_pref = df['Franquia'].map(PREFIXO)
+_alheia = _pref.notna() & ~pd.Series([str(m).strip().startswith(p) if isinstance(p, str) else True
+                                      for m, p in zip(df['Matricula'], _pref)], index=df.index)
+if _alheia.any():
+    print('DESCARTADAS %d vendas com matrícula de outra franquia:' % _alheia.sum())
+    print(df.loc[_alheia, ['Franquia', 'Matricula', 'Data']].to_string(index=False))
+    df = df[~_alheia]
 df = df.sort_values(['DataHora','Matricula']).drop_duplicates(['Matricula'], keep='last')
 df = df.sort_values(['Franquia','DataHora','Matricula'], kind='mergesort').reset_index(drop=True)
 df['Data'] = df['DataHora'].dt.strftime('%d/%m/%Y %H:%M:%S')
