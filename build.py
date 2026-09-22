@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Consolida CSVs do CTN (layout Filiação por Vendedor) em data/ e gera dashboard_vendas.html.
 Uso: python3 build.py <pasta_com_csvs_ctn> [--repo <pasta_do_repo>]
-Cada CSV: Franquia,Matricula,Filiado,Telefone,Nome,Data(serial Excel ou dd/mm/yyyy hh:mm:ss),Vendedor,Login,Prospeccao
+Cada CSV de origem: Franquia,Matricula,Filiado,Telefone,Nome,Data(serial Excel ou dd/mm/yyyy hh:mm:ss),Vendedor,Login,Prospeccao
 Regras: dedup por Matricula (a última ocorrência vence); a base existente em data/base_vendas.csv é preservada e mesclada.
 """
 import sys, os, glob, json, datetime as dt
@@ -10,7 +10,13 @@ import pandas as pd
 src = sys.argv[1]
 repo = sys.argv[sys.argv.index('--repo')+1] if '--repo' in sys.argv else os.path.dirname(os.path.abspath(__file__))
 datadir = os.path.join(repo, 'data'); os.makedirs(datadir, exist_ok=True)
-COLS = ['Franquia','Matricula','Filiado','Telefone','Nome','Data','Vendedor','Login','Prospeccao']
+# LGPD: o CSV de origem do CTN traz dados pessoais que este dashboard nunca agrega:
+#   Filiado  = nome do cliente
+#   Telefone = celular do cliente
+#   Login    = e-mail pessoal do vendedor
+# Nenhuma das tres entra em daily/vend/recent (o dedup e por Matricula), entao sao
+# descartadas aqui e nunca chegam a base publicada em data/base_vendas.csv.
+COLS = ['Franquia','Matricula','Nome','Data','Vendedor','Prospeccao']
 
 # Prefixo da matrícula de cada unidade. Rede de segurança do ctn_fetch.py: se
 # uma venda de outra franquia passar pelo download (sessão do CTN trocada no
