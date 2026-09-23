@@ -520,7 +520,25 @@ function say(t,cor){msgR.textContent=t;msgR.style.color=cor||'';}
 document.getElementById('tok-cancel').onclick=()=>modal.classList.add('hidden');
 document.getElementById('tok-open').onclick=()=>{modal.classList.add('hidden');window.open(wfUrl,'_blank','noopener');};
 document.getElementById('tok-save').onclick=()=>{const v=tokInput.value.trim();if(!v)return;setTok(v);modal.classList.add('hidden');tokInput.value='';disparar();};
-btnR.onclick=()=>{ if(!REPO_SLUG){window.open(wfUrl,'_blank','noopener');return;} if(!getTok()){modal.classList.remove('hidden');tokInput.focus();return;} disparar(); };
+btnR.onclick=async()=>{
+  // No Cloudflare Pages existe /api/atualizar: o token fica no servidor, atrás
+  // do login do Access, e nada sensível passa pelo navegador. Só caímos no
+  // token guardado localmente se essa função não existir (site ainda no
+  // GitHub Pages) — assim o botão funciona durante a migração.
+  btnR.disabled=true; say('Pedindo atualização…');
+  try{
+    const r=await fetch('api/atualizar',{method:'POST'});
+    if(r.ok){ say('Atualizando… isso leva de 1 a 3 minutos.'); aguardar(); return; }
+    if(r.status!==404&&r.status!==405){
+      const j=await r.json().catch(()=>({}));
+      say('Falhou: '+(j.erro||('HTTP '+r.status)),'var(--bad)'); btnR.disabled=false; return;
+    }
+  }catch(e){ /* sem função: segue para o modo antigo */ }
+  btnR.disabled=false; say('');
+  if(!REPO_SLUG){window.open(wfUrl,'_blank','noopener');return;}
+  if(!getTok()){modal.classList.remove('hidden');tokInput.focus();return;}
+  disparar();
+};
 async function disparar(){
   const t=getTok();
   btnR.disabled=true; say('Enviando pedido ao GitHub…');
