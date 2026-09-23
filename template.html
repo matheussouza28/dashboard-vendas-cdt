@@ -96,6 +96,13 @@ td.wrap{white-space:normal;overflow-wrap:break-word}
 footer{max-width:1200px;margin:10px auto 0;padding:0 14px;font-size:12px;color:var(--text-3)}
 .hidden{display:none!important}
 
+/* --- barras de progresso (quadro de metas) --- */
+.meter{display:inline-block;width:86px;height:7px;border-radius:4px;background:var(--surface-2);
+  border:1px solid var(--border);overflow:hidden;vertical-align:-1px;margin-right:8px}
+.meter i{display:block;height:100%;background:var(--brand)}
+.meter i.full{background:var(--good)}
+.meter-n{font-variant-numeric:tabular-nums;color:var(--text-2)}
+
 /* --- relatório do dia --- */
 #report{display:none}
 body.mode-report #dash-content{display:none}
@@ -125,9 +132,27 @@ body.mode-report #report{display:block}
 .rep .week .l{font-size:15px;letter-spacing:1px;text-transform:uppercase;font-weight:600;color:#e8f1ea}
 .rep .week .v{font-size:88px;font-weight:800;line-height:1.05;margin:26px 0 22px;font-variant-numeric:tabular-nums}
 .rep .week .u{font-size:16px;opacity:.85}
+.rep td.n .meta{font-size:14px;font-weight:600;color:#bcd6c4;margin-left:3px}
+.rep tr.total td.n .meta{font-size:17px}
+.rep .who{display:block}
+.rep .prog{display:block;height:7px;border-radius:4px;background:#0b3d22;margin:7px 0 0 36px;overflow:hidden}
+.rep tr.total .prog{margin-left:0;height:9px}
+.rep .prog i{display:block;height:100%;border-radius:4px;background:#5fd08a}
+.rep .prog i.full{background:#ffd44d}
 .rep .banner{margin:20px 26px 0;border-radius:10px;padding:18px;text-align:center;font-size:22px;font-weight:700;background:#b32a2a}
 .rep .banner.ok{background:#1e9e4a}
 .rep .foot{margin:14px 26px 0;font-size:12px;opacity:.6;text-align:right}
+
+.btn-reload{font:inherit;font-size:13px;background:var(--brand);color:#fff;border:1px solid var(--brand);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:600}
+.btn-reload[disabled]{opacity:.6;cursor:default}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-box{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:18px;max-width:460px;width:100%}
+.modal-box h3{margin:0 0 8px;font-size:15px}
+.modal-box p{margin:0 0 10px;font-size:13px;color:var(--text-2);line-height:1.5}
+.modal-box input{width:100%;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.modal-actions button{font:inherit;font-size:13px;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.modal-actions button.primary{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
 </style>
 </head>
 <body>
@@ -146,7 +171,20 @@ body.mode-report #report{display:block}
     <button type="button" data-preset="prev">Mês anterior</button>
     <button type="button" data-preset="30">Últimos 30 dias</button>
     <button type="button" data-preset="ytd">Ano 2026</button>
+    <button type="button" class="btn-reload" id="btn-reload" title="Buscar as vendas mais recentes no CTN">&#8635; Atualizar agora</button>
+    <span class="small" id="reload-msg"></span>
   </div>
+  <div class="modal hidden" id="tok-modal"><div class="modal-box">
+    <h3>Ativar o bot&#227;o &#8220;Atualizar agora&#8221;</h3>
+    <p>Para disparar a atualiza&#231;&#227;o daqui, cole um token do GitHub com permiss&#227;o de <b>Actions</b> neste reposit&#243;rio. Ele fica salvo <b>s&#243; neste navegador</b> &#8212; n&#227;o vai para o site nem para o reposit&#243;rio.</p>
+    <p><a id="tok-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Criar token</a> &#183; Fine-grained &#183; Repository access: apenas este reposit&#243;rio &#183; Permissions &#8594; Actions: <b>Read and write</b>.</p>
+    <input type="password" id="tok-input" placeholder="github_pat_... ou ghp_..." autocomplete="off">
+    <div class="modal-actions">
+      <button type="button" id="tok-cancel">Cancelar</button>
+      <button type="button" id="tok-open">Abrir no GitHub</button>
+      <button type="button" class="primary" id="tok-save">Salvar e atualizar</button>
+    </div>
+  </div></div>
   <section class="kpis" id="kpis"></section>
   <div class="grid two">
     <div class="card">
@@ -171,6 +209,10 @@ body.mode-report #report{display:block}
       <div class="hd"><div><h2 id="rank-title">Ranking de vendedores</h2><div class="sub" id="rank-sub"></div></div><button class="toggle" id="rank-more">Ver todos</button></div>
       <div class="tbl-wrap" id="rank-table"></div>
     </div>
+  </div>
+  <div class="card hidden" id="metas-card" style="margin-top:12px">
+    <div class="hd"><div><h2>Meta da semana</h2><div class="sub" id="metas-sub"></div></div></div>
+    <div class="tbl-wrap" id="metas-table"></div>
   </div>
   <div class="card" style="margin-top:12px">
     <div class="hd"><div><h2>Resumo por unidade</h2><div class="sub" id="units-sub"></div></div></div>
@@ -451,6 +493,66 @@ function renderUnits(rows,prows,pr){
 }
 render();
 
+// ---------- botão "Atualizar agora" ----------
+const REPO_SLUG=(function(){
+  const m=location.hostname.match(/^([^.]+)\.github\.io$/);
+  const seg=location.pathname.split('/').filter(Boolean)[0];
+  if(m&&seg) return m[1]+'/'+seg;
+  return D.repo||'';
+})();
+const WF_FILE='atualizar.yml';
+const btnR=document.getElementById('btn-reload'), msgR=document.getElementById('reload-msg');
+const modal=document.getElementById('tok-modal'), tokInput=document.getElementById('tok-input');
+const wfUrl=REPO_SLUG?('https://github.com/'+REPO_SLUG+'/actions/workflows/'+WF_FILE):'https://github.com';
+function getTok(){try{return localStorage.getItem('gh_token')||''}catch(e){return ''}}
+function setTok(v){try{v?localStorage.setItem('gh_token',v):localStorage.removeItem('gh_token')}catch(e){}}
+// O botão só aparece para quem ativou: abra a página uma vez com #admin no fim
+// do endereço. Fica gravado neste navegador; para os demais nem existe.
+(function(){
+  let adm=false;
+  try{
+    if(location.hash.toLowerCase().indexOf('admin')>=0){localStorage.setItem('gh_admin','1');history.replaceState(null,'',location.pathname+location.search);}
+    adm=localStorage.getItem('gh_admin')==='1'||!!localStorage.getItem('gh_token');
+  }catch(e){ adm=location.hash.toLowerCase().indexOf('admin')>=0; }
+  if(!adm){btnR.style.display='none';msgR.style.display='none';}
+})();
+function say(t,cor){msgR.textContent=t;msgR.style.color=cor||'';}
+document.getElementById('tok-cancel').onclick=()=>modal.classList.add('hidden');
+document.getElementById('tok-open').onclick=()=>{modal.classList.add('hidden');window.open(wfUrl,'_blank','noopener');};
+document.getElementById('tok-save').onclick=()=>{const v=tokInput.value.trim();if(!v)return;setTok(v);modal.classList.add('hidden');tokInput.value='';disparar();};
+btnR.onclick=()=>{ if(!REPO_SLUG){window.open(wfUrl,'_blank','noopener');return;} if(!getTok()){modal.classList.remove('hidden');tokInput.focus();return;} disparar(); };
+async function disparar(){
+  const t=getTok();
+  btnR.disabled=true; say('Enviando pedido ao GitHub…');
+  try{
+    const r=await fetch('https://api.github.com/repos/'+REPO_SLUG+'/actions/workflows/'+WF_FILE+'/dispatches',{
+      method:'POST',
+      headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+t,'X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},
+      body:JSON.stringify({ref:'main'})
+    });
+    if(r.status===204){ say('Atualizando… isso leva de 1 a 2 minutos.'); aguardar(); return; }
+    if(r.status===401||r.status===403||r.status===404){
+      setTok('');
+      say('Token inválido ou sem permissão. Cadastre de novo.','var(--bad)');
+      btnR.disabled=false; modal.classList.remove('hidden'); return;
+    }
+    say('O GitHub respondeu '+r.status+'. Tente pelo botão “Abrir no GitHub”.','var(--bad)');
+    btnR.disabled=false;
+  }catch(e){ say('Não consegui falar com o GitHub: '+e.message,'var(--bad)'); btnR.disabled=false; }
+}
+function aguardar(){
+  const antes=D.atualizado_em, ini=Date.now();
+  const meta=(location.protocol==='file:'&&REPO_SLUG)?('https://raw.githubusercontent.com/'+REPO_SLUG+'/main/data/meta.json'):'data/meta.json';
+  const timer=setInterval(async()=>{
+    if(Date.now()-ini>6*60*1000){ clearInterval(timer); say('Demorou mais que o esperado. Recarregue em alguns minutos.','var(--bad)'); btnR.disabled=false; return; }
+    try{
+      const r=await fetch(meta+'?t='+Date.now(),{cache:'no-store'});
+      const m=await r.json();
+      if(m.atualizado_em&&m.atualizado_em!==antes){ clearInterval(timer); say('Pronto! Recarregando…'); setTimeout(()=>location.reload(),800); }
+    }catch(e){}
+  },15000);
+}
+
 // ---------- relatório do dia ----------
 const GRUPOS=(D.grupos&&D.grupos.length)?D.grupos:[{nome:'5 unidades',titulo:'Relatório de Vendas',unidades:UNITS.filter(u=>u!=='OSASCO'),meta_semana:1000},{nome:'Osasco',titulo:'Relatório de Vendas Osasco',unidades:['OSASCO'],meta_semana:250}].filter(g=>g.unidades.length);
 let repIdx=0;
@@ -465,6 +567,75 @@ repMeta.value=loadMeta();
 repMeta.onchange=()=>{try{localStorage.setItem(metaKey(),repMeta.value);}catch(e){}renderReport();};
 repDate.onchange=renderReport;
 function weekStart(d){const dt=pd(d);const back=(dt.getDay()-3+7)%7;dt.setDate(dt.getDate()-back);return iso(dt);}
+
+// ---------- metas por unidade ----------
+// D.metas: meta semanal de cada unidade. D.peso_dia: quanto cada dia da semana
+// representa do total (0=domingo ... 6=sábado), medido nas últimas 13 semanas.
+const METAS=D.metas||{};
+const PESO=D.peso_dia||{"0":1.4,"1":20.9,"2":19.6,"3":17.9,"4":17.2,"5":16.2,"6":6.8};
+const METAS_ON=Object.keys(METAS).length>0;
+function metaSemana(u){return +METAS[u]||0;}
+function metaDoDia(u,dia){
+  const ms=metaSemana(u);if(!ms)return 0;
+  const p=+PESO[String(pd(dia).getDay())];
+  return Math.round(ms*(isFinite(p)?p:100/7)/100);
+}
+function barra(v,alvo){
+  const p=alvo>0?Math.min(100,v/alvo*100):0;
+  const b=el('span','prog');const i=el('i');
+  i.style.width=p.toFixed(1)+'%';if(v>=alvo)i.className='full';
+  b.appendChild(i);return b;
+}
+
+// ---------- quadro "Meta da semana" no dashboard ----------
+// Uma tabela por grupo do relatório (as 5 unidades num total, Osasco no seu).
+function renderMetas(){
+  if(!METAS_ON)return;
+  const card=document.getElementById('metas-card');card.classList.remove('hidden');
+  const hoje=HOJE>LAST?LAST:HOJE, ws=weekStart(hoje);
+  document.getElementById('metas-sub').textContent='semana de '+brShort(ws)+' a '+brShort(addDays(ws,6))+' · parcial até '+br(hoje);
+  const wrap=document.getElementById('metas-table');wrap.replaceChildren();
+  const grupos=(GRUPOS&&GRUPOS.length)?GRUPOS.map(g=>({nome:g.nome,unidades:g.unidades.filter(u=>metaSemana(u)>0)})):[{nome:'',unidades:UNITS.filter(u=>metaSemana(u)>0)}];
+  grupos.filter(g=>g.unidades.length).forEach((g,gi)=>{
+    const t=el('table');if(gi)t.style.marginTop='18px';
+    const th=el('tr');
+    ['Unidade','Meta/semana','Meta até hoje','Vendas','Ritmo','Progresso','Falta'].forEach((h,i)=>{
+      const c=el('th',i?'n':'',h);if(i===2||i===4)c.classList.add('col-x');th.appendChild(c);});
+    t.appendChild(th);
+    let tm=0,tp=0,tv=0;
+    const linhas=g.unidades.map(u=>{
+      let parcial=0;for(let d=ws;d<=hoje;d=addDays(d,1))parcial+=metaDoDia(u,d);
+      const v=sum(daily.filter(x=>x[0]>=ws&&x[0]<=hoje&&x[1]===u),2);
+      tm+=metaSemana(u);tp+=parcial;tv+=v;
+      return [u,metaSemana(u),parcial,v];
+    }).sort((a,b)=>b[1]-a[1]);
+    const total=g.unidades.length>1?[['Total',tm,tp,tv]]:[];
+    linhas.concat(total).forEach(r=>{
+      const tot=r[0]==='Total';const tr=el('tr');if(tot)tr.style.fontWeight='600';
+      const td=el('td');
+      if(!tot){const d=el('span','dot');d.style.cssText='display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;background:'+colorOf(r[0]);td.appendChild(d);}
+      td.appendChild(document.createTextNode(tot?'Total':nice(r[0])));tr.appendChild(td);
+      tr.appendChild(el('td','n',fmt(r[1])));
+      tr.appendChild(el('td','n col-x',fmt(r[2])));
+      tr.appendChild(el('td','n',fmt(r[3])));
+      const ritmo=r[2]?r[3]/r[2]:null;
+      const cr=el('td','n col-x',ritmo==null?'—':(ritmo>=1?'▲ ':'▼ ')+pct(ritmo));
+      if(ritmo!=null)cr.style.color=ritmo>=1?'var(--good)':'var(--bad)';
+      tr.appendChild(cr);
+      const tdp=el('td','n');const w=el('span','meter');const i=el('i');
+      i.style.width=(r[1]?Math.min(100,r[3]/r[1]*100):0).toFixed(1)+'%';
+      if(r[3]>=r[1])i.classList.add('full');
+      w.appendChild(i);tdp.appendChild(w);tdp.appendChild(el('span','meter-n',pct(r[1]?r[3]/r[1]:0)));
+      tr.appendChild(tdp);
+      const falta=r[1]-r[3];
+      const c=el('td','n',falta>0?fmt(falta):'✓ batida');
+      if(falta<=0)c.style.color='var(--good)';
+      tr.appendChild(c);t.appendChild(tr);
+    });
+    wrap.appendChild(t);
+  });
+}
+renderMetas();
 function renderReport(){
   const rw=document.querySelector('.rep-wrap');const z=Math.min(1,(rw.clientWidth||940)/940);document.getElementById('rep').style.zoom=z;
   GRUPOS.forEach((g,i)=>{const b=document.getElementById('rep-g'+i);if(b)b.setAttribute('aria-pressed',i===repIdx);});
@@ -476,9 +647,28 @@ function renderReport(){
   const totWeek=sum(daily.filter(x=>x[0]>=ws&&x[0]<=day&&units.includes(x[1])),2);
   document.getElementById('rep-title').textContent=G.titulo+' — '+br(day);
   document.getElementById('rep-meta-l').textContent='Meta da Semana: '+fmt(meta)+' vendas';
-  const t=document.getElementById('rep-table');t.replaceChildren();const th=el('tr');th.appendChild(el('th',null,'Franquia'));th.appendChild(el('th','n','Vendas'));t.appendChild(th);
-  per.forEach(([u,v],i)=>{const tr=el('tr');const td=el('td');if(i<3){const m=el('span','medal m'+(i+1),String(i+1));td.appendChild(m);}else td.appendChild(el('span','rk','#'+(i+1)));td.appendChild(document.createTextNode(u));tr.appendChild(td);tr.appendChild(el('td','n',fmt(v)));t.appendChild(tr);});
-  const tr=el('tr','total');tr.appendChild(el('td',null,'TOTAL DO DIA'));tr.appendChild(el('td','n',fmt(totDay)));t.appendChild(tr);
+  const t=document.getElementById('rep-table');t.replaceChildren();const th=el('tr');th.appendChild(el('th',null,'Franquia'));th.appendChild(el('th','n',METAS_ON?'Vendas / meta do dia':'Vendas'));t.appendChild(th);
+  let metaDiaTot=0;
+  per.forEach(([u,v],i)=>{
+    const tr=el('tr');const td=el('td');
+    const top=el('span','who');
+    if(i<3){top.appendChild(el('span','medal m'+(i+1),String(i+1)));}
+    else top.appendChild(el('span','rk','#'+(i+1)));
+    top.appendChild(document.createTextNode(u));
+    td.appendChild(top);
+    const md=metaDoDia(u,day);metaDiaTot+=md;
+    if(md>0)td.appendChild(barra(v,md));
+    tr.appendChild(td);
+    const tdn=el('td','n');tdn.appendChild(document.createTextNode(fmt(v)));
+    if(md>0)tdn.appendChild(el('span','meta','/ '+fmt(md)));
+    tr.appendChild(tdn);t.appendChild(tr);
+  });
+  const tr=el('tr','total');const tdt=el('td');tdt.appendChild(el('span','who','TOTAL DO DIA'));
+  if(metaDiaTot>0)tdt.appendChild(barra(totDay,metaDiaTot));
+  tr.appendChild(tdt);
+  const tdtn=el('td','n');tdtn.appendChild(document.createTextNode(fmt(totDay)));
+  if(metaDiaTot>0)tdtn.appendChild(el('span','meta','/ '+fmt(metaDiaTot)));
+  tr.appendChild(tdtn);t.appendChild(tr);
   document.getElementById('rep-week').textContent=fmt(totWeek);
   document.getElementById('rep-week-u').textContent='vendas · semana de '+brShort(ws)+' a '+brShort(addDays(ws,6));
   const falta=meta-totWeek;const bn=document.getElementById('rep-banner');bn.classList.toggle('ok',falta<=0);

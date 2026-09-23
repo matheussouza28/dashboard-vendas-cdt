@@ -66,6 +66,8 @@ daily.to_csv(os.path.join(datadir,'resumo_diario.csv'), index=False)
 vend.to_csv(os.path.join(datadir,'por_vendedor.csv'), index=False)
 
 units = sorted(df.Franquia.unique().tolist())
+cfgp = os.path.join(repo, 'config.json')
+cfg = json.load(open(cfgp, encoding='utf-8')) if os.path.exists(cfgp) else {}
 last = df.Dia.max(); cutoff = (pd.Timestamp(last) - pd.Timedelta(days=13)).strftime('%Y-%m-%d')
 rec = d[d.Dia >= cutoff]
 recent = [[r.Dia, r.Franquia, int(r.DataHora.hour), r.Vendedor, int(r.fil)] for r in rec.itertuples()]
@@ -77,8 +79,13 @@ payload = {
   'vend': vend.values.tolist(),
   'recent': recent,
   'hoje': (dt.datetime.utcnow()-dt.timedelta(hours=3)).strftime('%Y-%m-%d'),
+  'titulo': cfg.get('titulo', 'Dashboard de Vendas — Cartão de Todos'),
+  'repo': cfg.get('repo', ''),
+  'grupos': cfg.get('grupos_relatorio', []),
+  'metas': cfg.get('metas_semana', {}),
+  'peso_dia': cfg.get('peso_dia', {}),
 }
-json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
+json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent','grupos','metas','peso_dia')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
 tpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template.html'), encoding='utf-8').read()
 html = tpl.replace('__DATA__', json.dumps(payload, ensure_ascii=False, separators=(',',':')).replace('</', '<\\/'))
 open(os.path.join(repo, 'dashboard_vendas.html'), 'w', encoding='utf-8').write(html)

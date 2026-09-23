@@ -1,0 +1,26 @@
+{
+  "_comentario": "Lido pelo build.py. O download (scripts/ctn_fetch.py) não usa este arquivo.",
+  "titulo": "Dashboard de Vendas — Cartão de Todos",
+  "repo": "matheussouza28/dashboard-vendas-cdt",
+
+  "_metas": "Meta semanal de cada unidade (semana de quarta a terça). Soma das 5 = 1.005.",
+  "metas_semana": {
+    "MANAUS NORTE": 380,
+    "MANAUS CENTRO": 300,
+    "BELEM CENTRO": 185,
+    "PORTO ALEGRE NORTE": 100,
+    "PARINTINS": 40,
+    "OSASCO": 200
+  },
+
+  "_peso_dia": "Quanto cada dia da semana representa do total (0=domingo ... 6=sábado), medido nas últimas 13 semanas. A meta do dia = meta da semana x peso do dia.",
+  "peso_dia": {"0": 1.4, "1": 20.9, "2": 19.6, "3": 17.9, "4": 17.2, "5": 16.2, "6": 6.8},
+
+  "grupos_relatorio": [
+    {"nome": "5 unidades", "titulo": "Relatório de Vendas",
+     "unidades": ["BELEM CENTRO", "MANAUS CENTRO", "MANAUS NORTE", "PARINTINS", "PORTO ALEGRE NORTE"],
+     "meta_semana": 1005, "arquivo": "relatorio_5_unidades.png"},
+    {"nome": "Osasco", "titulo": "Relatório de Vendas Osasco",
+     "unidades": ["OSASCO"], "meta_semana": 200, "arquivo": "relatorio_osasco.png"}
+  ]
+}
