@@ -58,6 +58,7 @@ main{max-width:1200px;margin:0 auto;padding:14px 14px 40px}
 .kpi .v{font-size:26px;font-weight:650;letter-spacing:-.3px;margin-top:2px;font-variant-numeric:tabular-nums}
 .kpi .d{font-size:12px;color:var(--text-3);margin-top:2px}
 .kpi .d.up{color:var(--good)} .kpi .d.down{color:var(--bad)}
+.kpi.proj{border-style:dashed}
 .grid{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:900px){.grid.two{grid-template-columns:3fr 2fr}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;min-width:0}
@@ -324,6 +325,37 @@ function render(){
   renderUnits(rows,prows,pr);
 }
 
+// ---------- projeção do mês ----------
+// Realizado do mês + o que falta no ritmo das últimas 4 semanas, distribuído
+// pelo peso de cada dia da semana (domingo vende ~1%, segunda ~21%). Dias de
+// pico acima do dobro do normal contam no realizado, mas não no ritmo: um
+// mutirão como o de 22/04 (1.470 vendas) fazia a projeção disparar.
+// Nos meses fechados de 2026 errou ~10% em média até o dia 20 e ~5% na última
+// semana, mais para baixo que para cima (pico futuro não tem como prever).
+// PESO_PROJ fica aqui, e não reaproveita PESO: render() roda antes de PESO ser
+// declarado lá embaixo, e usar a constante antes da declaração quebra a página.
+const PESO_PROJ=(D.peso_dia&&Object.keys(D.peso_dia).length)?D.peso_dia:{"0":1.4,"1":20.9,"2":19.6,"3":17.9,"4":17.2,"5":16.2,"6":6.8};
+function projecaoMes(u){
+  const hoje=HOJE>LAST?HOJE:LAST, mes=hoje.slice(0,7);
+  const fim=iso(new Date(+mes.slice(0,4),+mes.slice(5,7),0));
+  const porDia={};daily.forEach(x=>{if(u==='ALL'||x[1]===u)porDia[x[0]]=(porDia[x[0]]||0)+x[2];});
+  const vd=d=>porDia[d]||0, w=d=>+PESO_PROJ[String(pd(d).getDay())]||0;
+  const base=[];for(let d=addDays(hoje,-28);d<hoje;d=addDays(d,1))if(d>=FIRST)base.push(d);
+  if(base.length<7)return null;
+  // domingo pesa ~1%: a razão vendas/peso dele é ruído, fica fora da mediana
+  const raz=base.filter(d=>w(d)>=5).map(d=>vd(d)/w(d)).sort((a,b)=>a-b), n=raz.length;
+  const med=n?(n%2?raz[(n-1)/2]:(raz[n/2-1]+raz[n/2])/2):0;
+  const pb=base.reduce((s,d)=>s+w(d),0);
+  const ritmo=base.reduce((s,d)=>s+(med>0?Math.min(vd(d),2*med*w(d)):vd(d)),0)/pb;
+  let total=0;for(let d=mes+'-01';d<hoje;d=addDays(d,1))total+=vd(d);
+  // hoje ainda está em andamento: vale o maior entre o já vendido e o esperado
+  total+=Math.max(vd(hoje),ritmo*w(hoje));
+  for(let d=addDays(hoje,1);d<=fim;d=addDays(d,1))total+=ritmo*w(d);
+  const pm=iso(new Date(+mes.slice(0,4),+mes.slice(5,7)-2,1)).slice(0,7);
+  const anterior=daily.reduce((s,x)=>s+(x[0].startsWith(pm)&&(u==='ALL'||x[1]===u)?x[2]:0),0);
+  return {mes,fim,valor:Math.round(total),pm,anterior};
+}
+
 function renderKpis(rows,prows,pr){
   const k=document.getElementById('kpis');k.replaceChildren();
   const v=sum(rows,2),f=sum(rows,3),r=sum(rows,4),pv=sum(prows,2);
@@ -339,6 +371,22 @@ function renderKpis(rows,prows,pr){
     ['Melhor dia',bestDay?fmt(bestDay[1]):'—',bestDay?br(bestDay[0]):'',''],
   ];
   items.forEach(([l,val,d,c])=>{const e=el('div','kpi');e.appendChild(el('div','l',l));e.appendChild(el('div','v',val));e.appendChild(el('div','d'+(c?' '+c:''),d));k.appendChild(e);});
+  // Só faz sentido olhando o mês em andamento (Mês atual, ou ele no seletor).
+  const pj=(range.kind==='mtd'||range.kind==='month')?projecaoMes(unit):null;
+  if(pj&&pj.mes===range.a.slice(0,7)){
+    const e=el('div','kpi proj');
+    e.title='Estimativa para '+br(pj.fim)+': vendas do mês até agora + o que falta no ritmo das últimas 4 semanas, '+
+      'respeitando o peso de cada dia da semana. Dias de pico não entram no ritmo. Margem típica de ~10% no meio do mês.';
+    e.appendChild(el('div','l','Projeção do mês'));
+    e.appendChild(el('div','v','≈ '+fmt(pj.valor)));
+    const nomePm=MESES_L[+pj.pm.slice(5,7)-1].toLowerCase();
+    if(pj.anterior){
+      const dv=(pj.valor-pj.anterior)/pj.anterior;
+      e.appendChild(el('div','d '+(dv>=0?'up':'down'),(dv>=0?'▲ ':'▼ ')+pct(Math.abs(dv))+' vs '+nomePm+' ('+fmt(pj.anterior)+')'));
+    }
+    e.appendChild(el('div','d','ritmo das últimas 4 semanas · margem ~10%'));
+    k.appendChild(e);
+  }
 }
 
 function renderDaily(rows,plabel){
