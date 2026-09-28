@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corrida de Vendas CDT</title>
+<style>
+/* Mesmos tokens do dashboard principal (template.html): cada unidade mantém a
+   cor que tem lá — Manaus Centro laranja (--s2), Manaus Norte verde (--s3). */
+:root{
+  color-scheme:light;
+  --bg:#f4f5f3; --surface:#fcfcfb; --surface-2:#f0f1ee; --border:#e2e3df;
+  --text:#0b0b0b; --text-2:#52514e; --text-3:#8a8985;
+  --brand:#1F4E3D; --brand-ink:#ffffff;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --good:#008300; --gold:#b8860b;
+  --grid:#e8e9e5; --flag-a:#0b0b0b; --flag-b:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#121311; --surface:#1a1a19; --surface-2:#232422; --border:#2e2f2c;
+    --text:#ffffff; --text-2:#c3c2b7; --text-3:#8d8c85;
+    --brand:#1F4E3D; --brand-ink:#ffffff;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --good:#3fae3f; --gold:#e0b441;
+    --grid:#2a2b28; --flag-a:#e8e8e3; --flag-b:#2e2f2c;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121311; --surface:#1a1a19; --surface-2:#232422; --border:#2e2f2c;
+  --text:#ffffff; --text-2:#c3c2b7; --text-3:#8d8c85;
+  --brand:#1F4E3D; --brand-ink:#ffffff;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --good:#3fae3f; --gold:#e0b441;
+  --grid:#2a2b28; --flag-a:#e8e8e3; --flag-b:#2e2f2c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header.top{background:var(--brand);color:var(--brand-ink);padding:14px 18px}
+header.top .row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;max-width:1100px;margin:0 auto}
+header.top h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.2px}
+header.top .meta{font-size:12px;opacity:.85}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25)}
+main{max-width:1100px;margin:0 auto;padding:14px 14px 40px}
+a.back{font-size:13px;color:var(--text-2);text-decoration:none}
+a.back:hover{text-decoration:underline}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-width:0;margin-top:12px}
+.card h2{font-size:14px;margin:0 0 2px;font-weight:600}
+.card .sub{font-size:12px;color:var(--text-2);margin-bottom:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid .card{margin-top:0}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.wrap-grid{margin-top:12px}
+
+/* ---- placar em pistas ---- */
+.lane{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:center;padding:12px 0}
+.lane+.lane{border-top:1px dashed var(--border)}
+.who{display:flex;flex-direction:column;gap:2px;min-width:0}
+.who .nm{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.who .nm i{width:10px;height:10px;border-radius:50%;flex:none}
+.who .val{font-size:34px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.1}
+.who .det{font-size:12px;color:var(--text-3)}
+.track{position:relative;height:44px;background:var(--surface-2);border-radius:10px;overflow:hidden}
+.track .fill{position:absolute;left:0;top:17px;height:10px;border-radius:0 5px 5px 0;transition:width .8s ease}
+.track .runner{position:absolute;top:6px;width:32px;height:32px;margin-left:-16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;border:2px solid var(--surface);transition:left .8s ease}
+.track .flag{position:absolute;right:0;top:0;bottom:0;width:14px;
+  background:repeating-conic-gradient(var(--flag-a) 0 25%,var(--flag-b) 0 50%) 0 0/7px 7px;opacity:.85}
+@media (max-width:560px){.lane{grid-template-columns:1fr}.who .val{font-size:28px}}
+.gap{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--surface-2);font-size:15px;font-weight:600;display:flex;align-items:center;gap:10px}
+.gap .trophy{font-size:20px}
+
+/* ---- gráfico ---- */
+.chart-wrap{position:relative;width:100%}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text-2);margin-bottom:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:14px;height:2px;border-radius:1px}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);display:none;z-index:5;min-width:150px}
+.tip .t{color:var(--text-2);margin-bottom:4px}
+.tip .r{display:flex;justify-content:space-between;gap:12px}
+.tip .r b{font-variant-numeric:tabular-nums}
+.tip .r i{display:inline-block;width:10px;height:2px;margin-right:6px;vertical-align:middle;border-radius:1px}
+svg text{fill:var(--text-3);font-size:11px}
+
+/* ---- tabelas ---- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-weight:600;color:var(--text-2);text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);font-size:12px}
+td{padding:8px 6px;border-bottom:1px solid var(--border)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.lead td.n b{font-weight:700}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+.muted{color:var(--text-3)}
+.rank li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.rank{list-style:none;margin:0;padding:0}
+.rank li span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank li b{font-variant-numeric:tabular-nums}
+.rank .pos{display:inline-block;width:22px;color:var(--text-3)}
+.small{font-size:12px;color:var(--text-3)}
+footer{font-size:12px;color:var(--text-3);margin-top:14px}
+</style>
+</head>
+<body>
+<header class="top"><div class="row">
+  <div><h1 id="title">Corrida de Vendas</h1><div class="meta" id="meta"></div></div>
+  <span class="pill" id="status"></span>
+</div></header>
+<main>
+  <a class="back" href="./">&larr; Dashboard de vendas</a>
+
+  <section class="card" aria-labelledby="h-placar">
+    <h2 id="h-placar">Placar</h2>
+    <div class="sub" id="placar-sub"></div>
+    <div id="lanes"></div>
+    <div class="gap" id="gap"></div>
+  </section>
+
+  <section class="card">
+    <h2>A corrida hora a hora</h2>
+    <div class="sub">vendas acumuladas desde a largada</div>
+    <div class="legend" id="legend"></div>
+    <div class="chart-wrap" id="chart"><div class="tip" id="tip"></div></div>
+  </section>
+
+  <div class="grid wrap-grid">
+    <section class="card">
+      <h2>Dia a dia</h2>
+      <div class="sub">quem venceu cada dia da campanha</div>
+      <div id="days"></div>
+    </section>
+    <section class="card">
+      <h2>Destaques da campanha</h2>
+      <div class="sub">vendedores com mais vendas em cada unidade</div>
+      <div id="tops"></div>
+    </section>
+  </div>
+  <footer id="foot"></footer>
+</main>
+<script id="data" type="application/json">{"campanha":{"nome":"Corrida de Vendas Manaus","inicio":"2026-09-28","fim":"2026-09-30","unidades":["MANAUS CENTRO","MANAUS NORTE"],"criterio_texto":"Total de vendas (filiações + refiliações)"},"atualizado_em":"28/09/2026 13:53","hoje":"2026-09-28","vendas":[["2026-09-28 05:16","MANAUS CENTRO","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 09:11","MANAUS CENTRO","RUAN MARINHO CARDOSO",1],["2026-09-28 09:19","MANAUS CENTRO","ENDY MONTEIRO PANTOJA",1],["2026-09-28 09:25","MANAUS CENTRO","RUAN MARINHO CARDOSO",1],["2026-09-28 09:37","MANAUS CENTRO","DARIA CRISTINA DA SILVA SIMONETTE",0],["2026-09-28 09:39","MANAUS CENTRO","RUAN MARINHO CARDOSO",1],["2026-09-28 09:44","MANAUS CENTRO","BRENDA MEIRELES DE QUEIROZ",0],["2026-09-28 09:45","MANAUS CENTRO","CRISTIANE DA SILVA VIANA",1],["2026-09-28 09:58","MANAUS CENTRO","DARIA CRISTINA DA SILVA SIMONETTE",1],["2026-09-28 10:02","MANAUS CENTRO","BRENDA MEIRELES DE QUEIROZ",1],["2026-09-28 10:16","MANAUS CENTRO","WEB SITE - CARTAO DE TODOS",0],["2026-09-28 10:21","MANAUS CENTRO","BRENDA MEIRELES DE QUEIROZ",1],["2026-09-28 10:28","MANAUS CENTRO","BRENDA MEIRELES DE QUEIROZ",0],["2026-09-28 10:29","MANAUS CENTRO","ELI DA SILVA NOGUEIRA",1],["2026-09-28 10:46","MANAUS CENTRO","RUAN MARINHO CARDOSO",1],["2026-09-28 10:51","MANAUS CENTRO","LUIZ HENRIQUE COSTA DOS REIS",1],["2026-09-28 10:52","MANAUS CENTRO","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 10:57","MANAUS CENTRO","RUAN MARINHO CARDOSO",0],["2026-09-28 11:06","MANAUS CENTRO","RUAN MARINHO CARDOSO",0],["2026-09-28 11:11","MANAUS CENTRO","MEL LIMA DA SILVA VALE",0],["2026-09-28 11:21","MANAUS CENTRO","HELLEN MELISSA LEAO DE MESSIAS",1],["2026-09-28 11:22","MANAUS CENTRO","MARIA MARCINALVA DE LIMA MIRANDA",0],["2026-09-28 11:26","MANAUS CENTRO","CRISTIANE DA SILVA VIANA",1],["2026-09-28 11:26","MANAUS CENTRO","VALERIA THAIS PAULA MACEDO",1],["2026-09-28 11:30","MANAUS CENTRO","LIA - GT7",1],["2026-09-28 11:38","MANAUS CENTRO","HELLEN MELISSA LEAO DE MESSIAS",0],["2026-09-28 11:41","MANAUS CENTRO","RUAN MARINHO CARDOSO",0],["2026-09-28 11:49","MANAUS CENTRO","ENDY MONTEIRO PANTOJA",1],["2026-09-28 12:03","MANAUS CENTRO","BRENDA MEIRELES DE QUEIROZ",1],["2026-09-28 12:15","MANAUS CENTRO","LUCIANE NOGUEIRA DA ROCHA",1],["2026-09-28 12:20","MANAUS CENTRO","DARIA CRISTINA DA SILVA SIMONETTE",1],["2026-09-28 12:25","MANAUS CENTRO","MARIA MARCINALVA DE LIMA MIRANDA",1],["2026-09-28 12:29","MANAUS CENTRO","MARIA MARCINALVA DE LIMA MIRANDA",1],["2026-09-28 12:38","MANAUS CENTRO","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 12:44","MANAUS CENTRO","VALERIA THAIS PAULA MACEDO",0],["2026-09-28 12:49","MANAUS CENTRO","DARIA CRISTINA DA SILVA SIMONETTE",1],["2026-09-28 12:52","MANAUS CENTRO","HELLEN MELISSA LEAO DE MESSIAS",1],["2026-09-28 12:57","MANAUS CENTRO","CRISTIANE DA SILVA VIANA",0],["2026-09-28 13:01","MANAUS CENTRO","MATHEUS PETTERSON DAMASCENA SILVA SANTOS",0],["2026-09-28 13:06","MANAUS CENTRO","ENDY MONTEIRO PANTOJA",1],["2026-09-28 13:18","MANAUS CENTRO","MARIA MARCINALVA DE LIMA MIRANDA",1],["2026-09-28 13:26","MANAUS CENTRO","MEL LIMA DA SILVA VALE",1],["2026-09-28 13:34","MANAUS CENTRO","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 13:36","MANAUS CENTRO","LUCIANE NOGUEIRA DA ROCHA",1],["2026-09-28 13:50","MANAUS CENTRO","HELLEN MELISSA LEAO DE MESSIAS",0],["2026-09-28 05:12","MANAUS NORTE","Digital B2B2C",1],["2026-09-28 07:24","MANAUS NORTE","MARIA DA CONCEIÇÃO DE SOUSA",1],["2026-09-28 08:13","MANAUS NORTE","MARIA DA CONCEIÇÃO DE SOUSA",1],["2026-09-28 08:33","MANAUS NORTE","CINTIA FERREIRA DA SILVA",0],["2026-09-28 08:38","MANAUS NORTE","MARIA DA CONCEIÇÃO DE SOUSA",1],["2026-09-28 08:53","MANAUS NORTE","WEB SITE - CARTAO DE TODOS",0],["2026-09-28 08:59","MANAUS NORTE","ANA FRANCISCA GUIMARAES DA SILVA",1],["2026-09-28 09:18","MANAUS NORTE","CAROLAINE SOUZA DE CASTRO",0],["2026-09-28 09:18","MANAUS NORTE","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 09:28","MANAUS NORTE","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 09:42","MANAUS NORTE","JAYNE SOUZA DE ALENCAR",1],["2026-09-28 09:46","MANAUS NORTE","MANOELLA MARLEN SEIXAS DOS SANTOS",1],["2026-09-28 09:48","MANAUS NORTE","AFIA DA SILVA COSTA",0],["2026-09-28 10:03","MANAUS NORTE","KELIANE SOCORRO DE SOUZA",1],["2026-09-28 10:14","MANAUS NORTE","STEFANI APARECIDA RODRIGUES DA SILVA - ATENDIMENTO WHATSAPP",0],["2026-09-28 10:18","MANAUS NORTE","CLAUDIA COELHO DE CARVALHO",1],["2026-09-28 10:19","MANAUS NORTE","RAIMUNDA CLEUCI CARDOSO FEITOZA BATISTA",1],["2026-09-28 10:38","MANAUS NORTE","VILCILEIA DOS SANTOS MONTEIRO",1],["2026-09-28 10:40","MANAUS NORTE","MARIA DA CONCEIÇÃO DE SOUSA",1],["2026-09-28 10:43","MANAUS NORTE","MARILIA SILVA DO NASCIMENTO MARQUES",0],["2026-09-28 10:45","MANAUS NORTE","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 10:47","MANAUS NORTE","CAROLAINE SOUZA DE CASTRO",1],["2026-09-28 10:48","MANAUS NORTE","LUCAS DE OLIVEIRA CAVACANTE",1],["2026-09-28 10:50","MANAUS NORTE","KEILIANE DE AZEVEDO QUEIROZ DA SILVA",0],["2026-09-28 10:52","MANAUS NORTE","ANA FRANCISCA GUIMARAES DA SILVA",1],["2026-09-28 10:58","MANAUS NORTE","MARIA FRANCINETE SILVA DOS SANTOS LIMA",1],["2026-09-28 10:58","MANAUS NORTE","FERNANDA KAROLYNY MONTEIRO DA ROCHA",1],["2026-09-28 11:26","MANAUS NORTE","DALILA RAMOS DE SOUZA E SOUSA",1],["2026-09-28 11:26","MANAUS NORTE","SANGELA CRISTINA DO VALE CAVALCANTE",0],["2026-09-28 11:31","MANAUS NORTE","LEANDRA SILVA NOGUEIRA",1],["2026-09-28 11:33","MANAUS NORTE","FERNANDA KAROLYNY MONTEIRO DA ROCHA",1],["2026-09-28 11:36","MANAUS NORTE","CLAUDIA COELHO DE CARVALHO",0],["2026-09-28 11:37","MANAUS NORTE","CAMILA DA SILVA BOTELHO",1],["2026-09-28 11:42","MANAUS NORTE","MIRIAM HELENA ANDRADE PEREIRA DE MELO",1],["2026-09-28 11:44","MANAUS NORTE","MARIA FRANCINETE SILVA DOS SANTOS LIMA",1],["2026-09-28 11:47","MANAUS NORTE","JAYNE SOUZA DE ALENCAR",1],["2026-09-28 11:47","MANAUS NORTE","REGIANE CUNHA DOS SANTOS",0],["2026-09-28 11:48","MANAUS NORTE","KEILIANE DE AZEVEDO QUEIROZ DA SILVA",1],["2026-09-28 11:54","MANAUS NORTE","DALILA RAMOS DE SOUZA E SOUSA",1],["2026-09-28 12:00","MANAUS NORTE","CAMILA DA SILVA BOTELHO",0],["2026-09-28 12:03","MANAUS NORTE","LUCAS DE OLIVEIRA CAVACANTE",1],["2026-09-28 12:06","MANAUS NORTE","KELIANE SOCORRO DE SOUZA",0],["2026-09-28 12:09","MANAUS NORTE","LUCAS DE OLIVEIRA CAVACANTE",1],["2026-09-28 12:12","MANAUS NORTE","CAMILA DA SILVA BOTELHO",1],["2026-09-28 12:21","MANAUS NORTE","CAROLAINE SOUZA DE CASTRO",1],["2026-09-28 12:27","MANAUS NORTE","CAROLAINE SOUZA DE CASTRO",1],["2026-09-28 12:28","MANAUS NORTE","ANA FRANCISCA GUIMARAES DA SILVA",1],["2026-09-28 12:29","MANAUS NORTE","LUCAS DE OLIVEIRA CAVACANTE",1],["2026-09-28 12:32","MANAUS NORTE","JAYNE SOUZA DE ALENCAR",1],["2026-09-28 12:39","MANAUS NORTE","ANA FRANCISCA GUIMARAES DA SILVA",1],["2026-09-28 12:41","MANAUS NORTE","CAROLAINE SOUZA DE CASTRO",1],["2026-09-28 12:46","MANAUS NORTE","FERNANDA KAROLYNY MONTEIRO DA ROCHA",1],["2026-09-28 12:48","MANAUS NORTE","MARIA FRANCINETE SILVA DOS SANTOS LIMA",1],["2026-09-28 12:53","MANAUS NORTE","VILCILEIA DOS SANTOS MONTEIRO",1],["2026-09-28 12:57","MANAUS NORTE","FERNANDA KAROLYNY MONTEIRO DA ROCHA",1],["2026-09-28 13:02","MANAUS NORTE","MARIA DA CONCEIÇÃO DE SOUSA",1],["2026-09-28 13:03","MANAUS NORTE","JAYNE SOUZA DE ALENCAR",0],["2026-09-28 13:05","MANAUS NORTE","FERNANDA KAROLYNY MONTEIRO DA ROCHA",1],["2026-09-28 13:05","MANAUS NORTE","CLAUDIA COELHO DE CARVALHO",0],["2026-09-28 13:09","MANAUS NORTE","WEB SITE - CARTAO DE TODOS",1],["2026-09-28 13:19","MANAUS NORTE","KEILIANE DE AZEVEDO QUEIROZ DA SILVA",1],["2026-09-28 13:27","MANAUS NORTE","CAMILA DA SILVA BOTELHO",1],["2026-09-28 13:28","MANAUS NORTE","CAROLAINE SOUZA DE CASTRO",1],["2026-09-28 13:32","MANAUS NORTE","RAIMUNDA CLEUCI CARDOSO FEITOZA BATISTA",1],["2026-09-28 13:40","MANAUS NORTE","WEB SITE - CARTAO DE TODOS",0],["2026-09-28 13:40","MANAUS NORTE","DALILA RAMOS DE SOUZA E SOUSA",1],["2026-09-28 13:44","MANAUS NORTE","MARIA DA CONCEIÇÃO DE SOUSA",0],["2026-09-28 13:48","MANAUS NORTE","MANOELLA MARLEN SEIXAS DOS SANTOS",1],["2026-09-28 13:48","MANAUS NORTE","FERNANDA KAROLYNY MONTEIRO DA ROCHA",1],["2026-09-28 13:51","MANAUS NORTE","KEILIANE DE AZEVEDO QUEIROZ DA SILVA",1],["2026-09-28 13:51","MANAUS NORTE","WEB SITE - CARTAO DE TODOS",1]]}</script>
+<script>
+(function(){
+const D=JSON.parse(document.getElementById('data').textContent);
+const C=D.campanha, UN=C.unidades;
+const NICE={'BELEM CENTRO':'Belém Centro','MANAUS CENTRO':'Manaus Centro','MANAUS NORTE':'Manaus Norte','OSASCO':'Osasco','PARINTINS':'Parintins','PORTO ALEGRE NORTE':'Porto Alegre Norte'};
+const nice=u=>NICE[u]||u;
+// Cor fixa por unidade, igual ao dashboard principal: a cor segue a unidade, não a posição.
+const COR={'BELEM CENTRO':'var(--s1)','MANAUS CENTRO':'var(--s2)','MANAUS NORTE':'var(--s3)','OSASCO':'var(--s4)'};
+const cor=(u,i)=>COR[u]||['var(--s1)','var(--s4)'][i%2];
+const fmt=n=>n.toLocaleString('pt-BR');
+const DIAS=['dom','seg','ter','qua','qui','sex','sáb'];
+const pd=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);};
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const dm=s=>s.slice(8,10)+'/'+s.slice(5,7);
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+const SITE=v=>/^WEB SITE/i.test(v);
+
+// ---- tempo: "agora" é a hora da última atualização da base ----
+const [ad,ah]=D.atualizado_em.split(' ');const [d0,m0,y0]=ad.split('/').map(Number);const [hh,mi]=ah.split(':').map(Number);
+const AGORA=new Date(y0,m0-1,d0,hh,mi);
+const INI=pd(C.inicio), FIM=new Date(pd(C.fim).getTime()+86400000-60000);
+const dias=[];for(let d=new Date(INI);d<=pd(C.fim);d.setDate(d.getDate()+1))dias.push(iso(d));
+const antes=AGORA<INI, acabou=AGORA>FIM;
+const hojeIdx=dias.indexOf(iso(AGORA));
+
+// ---- totais ----
+const tot={},fil={},porDia={},porVend={};
+UN.forEach(u=>{tot[u]=0;fil[u]=0;porVend[u]={};dias.forEach(d=>{porDia[d+'|'+u]=0;});});
+const vendas=D.vendas.filter(v=>UN.includes(v[1])).sort((a,b)=>a[0]<b[0]?-1:1);
+vendas.forEach(([t,u,vd,f])=>{tot[u]++;fil[u]+=f;porDia[t.slice(0,10)+'|'+u]++;porVend[u][vd]=(porVend[u][vd]||0)+1;});
+const ordem=[...UN].sort((a,b)=>tot[b]-tot[a]);
+const lider=ordem[0], seg=ordem[1], empate=tot[lider]===tot[seg];
+
+// ---- cabeçalho ----
+document.getElementById('title').textContent='🏁 '+(C.nome||'Corrida de Vendas');
+document.getElementById('meta').textContent=UN.map(nice).join(' × ')+' · '+dm(C.inicio)+' a '+dm(C.fim)+' · atualizado em '+D.atualizado_em;
+document.getElementById('status').textContent=antes?'Largada em '+dm(C.inicio):acabou?'Encerrada · resultado final':'Dia '+(hojeIdx+1)+' de '+dias.length;
+document.getElementById('placar-sub').textContent=(C.criterio_texto||'Total de vendas (filiações + refiliações)')+(acabou?' · resultado final':' · parcial');
+
+// ---- pistas ----
+// Em andamento, o líder fica a ~89% da pista: a bandeira só é alcançada no fim.
+const L=Math.max(1,tot[lider]), escala=acabou?L:L*1.12;
+const lanes=document.getElementById('lanes');
+UN.forEach((u,i)=>{
+  const pos=ordem.indexOf(u)+1, pct=Math.max(0,Math.min(100,tot[u]/escala*100));
+  const row=el('div','lane');
+  const who=el('div','who');
+  const nm=el('div','nm');const dot=el('i');dot.style.background=cor(u,i);nm.appendChild(dot);nm.appendChild(document.createTextNode(nice(u)));
+  who.appendChild(nm);who.appendChild(el('div','val',fmt(tot[u])));
+  who.appendChild(el('div','det',fmt(fil[u])+' filiações · '+fmt(tot[u]-fil[u])+' refiliações'));
+  const tr=el('div','track');tr.setAttribute('role','img');
+  tr.setAttribute('aria-label',nice(u)+': '+tot[u]+' vendas, '+(empate?'empatado':pos+'º lugar'));
+  const fl=el('div','fill');fl.style.background=cor(u,i);fl.style.width=pct+'%';
+  const rn=el('div','runner',empate?'=':pos+'º');rn.style.background=cor(u,i);rn.style.left='max(16px, '+pct+'%)';
+  tr.appendChild(fl);tr.appendChild(el('div','flag'));tr.appendChild(rn);
+  row.appendChild(who);row.appendChild(tr);lanes.appendChild(row);
+});
+const gap=document.getElementById('gap');
+const dif=tot[lider]-tot[seg];
+gap.appendChild(el('span','trophy',acabou&&!empate?'🏆':'🏁'));
+gap.appendChild(el('span',null,
+  antes?'A largada é em '+dm(C.inicio)+'.':
+  empate?'Empate: '+fmt(tot[lider])+' × '+fmt(tot[seg])+'.':
+  acabou?nice(lider)+' venceu a corrida por '+fmt(dif)+' venda'+(dif>1?'s':'')+' ('+fmt(tot[lider])+' × '+fmt(tot[seg])+').':
+  nice(lider)+' lidera por '+fmt(dif)+' venda'+(dif>1?'s':'')+'. '+nice(seg)+' precisa de '+fmt(dif+1)+' para virar.'));
+
+// ---- gráfico: acumulado por hora ----
+function chart(){
+  const box=document.getElementById('chart');
+  box.querySelectorAll('svg').forEach(s=>s.remove());
+  const leg=document.getElementById('legend');leg.replaceChildren();
+  UN.forEach((u,i)=>{const s=el('span');const k=el('i');k.style.background=cor(u,i);s.appendChild(k);s.appendChild(document.createTextNode(nice(u)));leg.appendChild(s);});
+  if(antes)return;
+  // O eixo cobre a campanha inteira (a "pista"); as linhas param em agora.
+  const total=Math.ceil((FIM-INI)/3600000);
+  const horas=acabou?total:Math.max(1,Math.min(total,Math.ceil((AGORA-INI)/3600000)));
+  // ponto h = acumulado até o fim da hora h (0 = largada)
+  const serie={};UN.forEach(u=>serie[u]=new Array(horas+1).fill(0));
+  vendas.forEach(([t,u])=>{const [dd,tt]=t.split(' ');const [H,M]=tt.split(':').map(Number);
+    const at=new Date(pd(dd).getTime()+H*3600000+M*60000);const h=Math.min(horas,Math.floor((at-INI)/3600000)+1);
+    for(let k=h;k<=horas;k++)serie[u][k]++;});
+  const W=Math.max(320,box.clientWidth||700), H=260, ml=38, mr=118, mt=10, mb=26;
+  const max=Math.max(1,...UN.map(u=>serie[u][horas]));
+  const step=[1,2,5,10,20,25,50,100,200,250,500].find(s=>max/s<=5)||1000; const ymax=Math.ceil(max/step)*step;
+  const x=h=>ml+(W-ml-mr)*h/total, y=v=>mt+(H-mt-mb)*(1-v/ymax);
+  const NS='http://www.w3.org/2000/svg';const S=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+  const svg=S('svg',{width:W,height:H,viewBox:'0 0 '+W+' '+H,role:'img','aria-label':'Vendas acumuladas por hora de cada unidade'});
+  for(let v=0;v<=ymax;v+=step){svg.appendChild(S('line',{x1:ml,x2:W-mr,y1:y(v),y2:y(v),stroke:'var(--grid)','stroke-width':1}));
+    const t=S('text',{x:ml-6,y:y(v)+4,'text-anchor':'end'});t.textContent=v;svg.appendChild(t);}
+  // marcas: meia-noite de cada dia e meio-dia
+  const estreito=W<560; // celular: só as datas, sem as marcas de meio-dia
+  for(let h=0;h<total;h+=12){const d=new Date(INI.getTime()+h*3600000);const meia=d.getHours()===0;
+    if(estreito&&!meia)continue;
+    svg.appendChild(S('line',{x1:x(h),x2:x(h),y1:mt,y2:H-mb,stroke:'var(--grid)','stroke-width':meia?1.5:1,'stroke-dasharray':meia?'':'2 4'}));
+    const t=S('text',{x:x(h),y:H-8,'text-anchor':meia?'start':'middle'});t.textContent=meia?(estreito?'':DIAS[d.getDay()]+' ')+dm(iso(d)):'12h';svg.appendChild(t);}
+  svg.appendChild(S('line',{x1:x(total),x2:x(total),y1:mt,y2:H-mb,stroke:'var(--text-3)','stroke-width':1.5}));
+  {const t=S('text',{x:x(total),y:H-8,'text-anchor':'middle'});t.textContent=estreito?'🏁':'🏁 chegada';svg.appendChild(t);}
+  // linhas em degrau: a venda entra no acumulado na hora em que acontece
+  const fim={};
+  UN.forEach((u,i)=>{let dpath='M'+x(0)+','+y(0);for(let h=1;h<=horas;h++)dpath+='H'+x(h)+'V'+y(serie[u][h]);
+    svg.appendChild(S('path',{d:dpath,fill:'none',stroke:cor(u,i),'stroke-width':2,'stroke-linejoin':'round'}));fim[u]=y(serie[u][horas]);});
+  // rótulos diretos no fim das linhas, afastados se colidirem
+  const lab=UN.map(u=>({u,y:fim[u]})).sort((a,b)=>a.y-b.y);
+  for(let k=1;k<lab.length;k++)if(lab[k].y-lab[k-1].y<16)lab[k].y=lab[k-1].y+16;
+  lab.forEach(({u,y:yy})=>{const i=UN.indexOf(u);
+    svg.appendChild(S('circle',{cx:x(horas),cy:fim[u],r:4,fill:cor(u,i),stroke:'var(--surface)','stroke-width':2}));
+    const t=S('text',{x:x(horas)+10,y:yy+4});t.style.fill='var(--text)';t.style.fontSize='12px';t.textContent=nice(u)+' '+fmt(serie[u][horas]);svg.appendChild(t);});
+  // camada de hover: linha-guia + tooltip com as duas unidades
+  const guia=S('line',{y1:mt,y2:H-mb,stroke:'var(--text-3)','stroke-width':1,visibility:'hidden'});svg.appendChild(guia);
+  const dots=UN.map((u,i)=>{const c=S('circle',{r:4,fill:cor(u,i),stroke:'var(--surface)','stroke-width':2,visibility:'hidden'});svg.appendChild(c);return c;});
+  const hit=S('rect',{x:ml,y:mt,width:W-ml-mr,height:H-mt-mb,fill:'transparent'});svg.appendChild(hit);
+  const tip=document.getElementById('tip');
+  const show=ev=>{const r=svg.getBoundingClientRect();const px=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;
+    const h=Math.max(0,Math.min(horas,Math.round((px-ml)/(W-ml-mr)*total)));
+    guia.setAttribute('x1',x(h));guia.setAttribute('x2',x(h));guia.setAttribute('visibility','visible');
+    UN.forEach((u,i)=>{dots[i].setAttribute('cx',x(h));dots[i].setAttribute('cy',y(serie[u][h]));dots[i].setAttribute('visibility','visible');});
+    const d=new Date(INI.getTime()+h*3600000);tip.replaceChildren(el('div','t',DIAS[d.getDay()]+' '+dm(iso(d))+' às '+String(d.getHours()).padStart(2,'0')+'h'));
+    [...UN].sort((a,b)=>serie[b][h]-serie[a][h]).forEach(u=>{const i=UN.indexOf(u);const rr=el('div','r');const s=el('span');const k=el('i');k.style.background=cor(u,i);s.appendChild(k);s.appendChild(document.createTextNode(nice(u)));rr.appendChild(s);rr.appendChild(el('b',null,fmt(serie[u][h])));tip.appendChild(rr);});
+    tip.style.display='block';const tx=x(h)+12+160>W?x(h)-172:x(h)+12;tip.style.left=tx+'px';tip.style.top='8px';};
+  const hide=()=>{tip.style.display='none';guia.setAttribute('visibility','hidden');dots.forEach(c=>c.setAttribute('visibility','hidden'));};
+  hit.addEventListener('pointermove',show);hit.addEventListener('pointerleave',hide);
+  box.appendChild(svg);
+}
+chart();let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(chart,150);});
+
+// ---- dia a dia (também é a tabela do gráfico) ----
+const t=el('table');const th=el('tr');th.appendChild(el('th',null,'Dia'));
+UN.forEach(u=>th.appendChild(el('th','n',nice(u))));th.appendChild(el('th',null,'Venceu'));t.appendChild(th);
+dias.forEach((d,k)=>{const tr=el('tr');const futuro=antes||(!acabou&&k>hojeIdx);
+  tr.appendChild(el('td',null,DIAS[pd(d).getDay()]+' '+dm(d)+(!acabou&&k===hojeIdx?' (hoje)':'')));
+  const vs=UN.map(u=>porDia[d+'|'+u]);const mx=Math.max(...vs);
+  UN.forEach((u,i)=>{const c=el('td','n');if(futuro)c.appendChild(el('span','muted','—'));else{const b=el(vs[i]===mx&&mx>0?'b':'span',null,fmt(vs[i]));c.appendChild(b);}tr.appendChild(c);});
+  const w=el('td');
+  if(futuro)w.appendChild(el('span','muted','—'));
+  else if(mx===0||vs.filter(v=>v===mx).length>1)w.appendChild(el('span','muted',mx===0?'—':'empate'));
+  else{const u=UN[vs.indexOf(mx)];const dd=el('span','dot');dd.style.background=cor(u,UN.indexOf(u));w.appendChild(dd);w.appendChild(document.createTextNode(nice(u)+(!acabou&&k===hojeIdx?' (parcial)':'')));}
+  tr.appendChild(w);t.appendChild(tr);});
+const tt=el('tr','lead');tt.appendChild(el('td',null,'Total'));UN.forEach(u=>{const c=el('td','n');c.appendChild(el('b',null,fmt(tot[u])));tt.appendChild(c);});tt.appendChild(el('td'));t.appendChild(tt);
+document.getElementById('days').appendChild(t);
+
+// ---- destaques: vendas pelo site não têm vendedor, ficam numa linha à parte ----
+const tops=document.getElementById('tops');
+UN.forEach((u,i)=>{const h=el('div');h.style.cssText='font-weight:600;font-size:13px;margin:'+(i?'14px':'0')+' 0 4px';
+  const dd=el('span','dot');dd.style.background=cor(u,i);h.appendChild(dd);h.appendChild(document.createTextNode(nice(u)));tops.appendChild(h);
+  const ent=Object.entries(porVend[u]);const site=ent.filter(([v])=>SITE(v)).reduce((s,[,n])=>s+n,0);
+  const pess=ent.filter(([v])=>!SITE(v)).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const ol=el('ol','rank');
+  if(!pess.length)ol.appendChild(el('li','muted','Ainda sem vendas.'));
+  pess.forEach(([v,n],k)=>{const li=el('li');const s=el('span');s.appendChild(el('span','pos',(k+1)+'º'));s.appendChild(document.createTextNode(v));li.appendChild(s);li.appendChild(el('b',null,fmt(n)));ol.appendChild(li);});
+  tops.appendChild(ol);
+  if(site)tops.appendChild(el('div','small','+ '+fmt(site)+' venda'+(site>1?'s':'')+' pelo site (contam no placar)'));});
+
+document.getElementById('foot').textContent='Critério: '+(C.criterio_texto||'total de vendas (filiações + refiliações)').toLowerCase()+' de '+dm(C.inicio)+' a '+dm(C.fim)+', incluindo vendas pelo site. Fonte: CTN · base atualizada em '+D.atualizado_em+' · atualiza a cada 30 min.';
+})();
+</script>
+</body>
+</html>
