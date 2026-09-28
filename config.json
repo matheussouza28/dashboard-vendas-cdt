@@ -16,6 +16,15 @@
   "_peso_dia": "Quanto cada dia da semana representa do total (0=domingo ... 6=sábado), medido nas últimas 13 semanas. A meta do dia = meta da semana x peso do dia.",
   "peso_dia": {"0": 1.4, "1": 20.9, "2": 19.6, "3": 17.9, "4": 17.2, "5": 16.2, "6": 6.8},
 
+  "_campanha": "Corrida entre unidades: gera corrida.html e o card \"corrida\" do bot. Apague o bloco quando a campanha acabar.",
+  "campanha": {
+    "nome": "Corrida de Vendas Manaus",
+    "inicio": "2026-09-28",
+    "fim": "2026-09-30",
+    "unidades": ["MANAUS CENTRO", "MANAUS NORTE"],
+    "criterio_texto": "Total de vendas (filiações + refiliações)"
+  },
+
   "grupos_relatorio": [
     {"nome": "5 unidades", "titulo": "Relatório de Vendas",
      "unidades": ["BELEM CENTRO", "MANAUS CENTRO", "MANAUS NORTE", "PARINTINS", "PORTO ALEGRE NORTE"],

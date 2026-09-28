@@ -90,5 +90,20 @@ tpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template.ht
 html = tpl.replace('__DATA__', json.dumps(payload, ensure_ascii=False, separators=(',',':')).replace('</', '<\\/'))
 open(os.path.join(repo, 'dashboard_vendas.html'), 'w', encoding='utf-8').write(html)
 open(os.path.join(repo, 'index.html'), 'w', encoding='utf-8').write(html)
+
+# Corrida entre unidades (campanha): página própria, corrida.html, gerada a
+# cada atualização a partir das mesmas vendas. Só é gerada enquanto houver
+# "campanha" no config.json; o card de WhatsApp lê a mesma definição de lá.
+camp = cfg.get('campanha')
+tplc = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template_corrida.html')
+if camp and os.path.exists(tplc):
+    c = d[(d.Dia >= camp['inicio']) & (d.Dia <= camp['fim']) & d.Franquia.isin(camp['unidades'])]
+    corrida = {
+      'campanha': camp, 'atualizado_em': payload['atualizado_em'], 'hoje': payload['hoje'],
+      'vendas': [[r.DataHora.strftime('%Y-%m-%d %H:%M'), r.Franquia, r.Vendedor, int(r.fil)] for r in c.itertuples()],
+    }
+    htmlc = open(tplc, encoding='utf-8').read().replace('__DATA__', json.dumps(corrida, ensure_ascii=False, separators=(',',':')).replace('</', '<\\/'))
+    open(os.path.join(repo, 'corrida.html'), 'w', encoding='utf-8').write(htmlc)
+    print('corrida:', ' × '.join('%s %d' % (u, int((c.Franquia == u).sum())) for u in camp['unidades']))
 print('base:', len(df), 'vendas |', df.Dia.min(), '→', df.Dia.max(), '| unidades:', units)
 print(df.groupby(['Franquia','Mes']).size().unstack(fill_value=0).to_string())
