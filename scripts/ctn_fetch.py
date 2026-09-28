@@ -223,6 +223,16 @@ def main():
     today = now_br().date()  # Brasília
     if start > today:
         start = today
+    # Carga de histórico sob demanda (workflow_dispatch com "desde"/"ate", ex.:
+    # o ano de 2025): baixa só esse intervalo, e o build.py junta com a base
+    # existente (dedup por matrícula). Sem as variáveis, nada muda.
+    desde = os.environ.get('CTN_DESDE', '').strip()
+    ate = os.environ.get('CTN_ATE', '').strip()
+    if desde:
+        start = dt.date.fromisoformat(desde)
+        if ate:
+            today = min(today, dt.date.fromisoformat(ate))
+        print('Carga de histórico: %s a %s' % (start, today))
     out = os.path.join(root, 'src'); os.makedirs(out, exist_ok=True)
     total = 0
     for unit in UNITS:

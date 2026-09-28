@@ -7,6 +7,15 @@ on:
     - cron: '15,45 9-23 * * *'   # UTC 09:15–23:45  ->  BRT 06:15–20:45
     - cron: '15,45 0-2 * * *'    # UTC 00:15–02:45  ->  BRT 21:15–23:45
   workflow_dispatch:
+    inputs:
+      desde:
+        description: 'Só para carga de histórico: primeiro dia (AAAA-MM-DD). Vazio = atualização normal.'
+        required: false
+        default: ''
+      ate:
+        description: 'Só para carga de histórico: último dia (AAAA-MM-DD).'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -32,6 +41,8 @@ jobs:
         env:
           CTN_COOKIE: ${{ secrets.CTN_COOKIE }}
           MINHACONTA_COOKIE: ${{ secrets.MINHACONTA_COOKIE }}
+          CTN_DESDE: ${{ github.event.inputs.desde }}
+          CTN_ATE: ${{ github.event.inputs.ate }}
         run: python scripts/ctn_fetch.py
 
       - name: Regenerar dashboard

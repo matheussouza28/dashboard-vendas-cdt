@@ -172,7 +172,8 @@ body.mode-report #report{display:block}
     <button type="button" data-preset="mtd">Mês atual</button>
     <button type="button" data-preset="prev">Mês anterior</button>
     <button type="button" data-preset="30">Últimos 30 dias</button>
-    <button type="button" data-preset="ytd">Ano 2026</button>
+    <button type="button" data-preset="ytd" id="btn-ytd">Ano 2026</button>
+    <button type="button" data-preset="py" id="btn-py" class="hidden">Ano 2025</button>
     <button type="button" class="btn-reload" id="btn-reload" title="Buscar as vendas mais recentes no CTN">&#8635; Atualizar agora</button>
     <span class="small" id="reload-msg"></span>
   </div>
@@ -266,6 +267,8 @@ const vend=D.vend;   // [mes, franquia, vendedor, vendas, fil, ref]
 const LAST=D.periodo.fim, FIRST=D.periodo.inicio; const recent=D.recent||[]; const HOJE=D.hoje||LAST; const DAY=(recent.some(r=>r[0]===HOJE)?HOJE:LAST);
 (function(){const b=document.getElementById('btn-day');if(b)b.textContent=DAY===HOJE?'Hoje':'Último dia ('+DAY.slice(8,10)+'/'+DAY.slice(5,7)+')';})();
 const months=[...new Set(daily.map(r=>r[0].slice(0,7)))].sort();
+// Rótulos dos anos a partir dos dados: "Ano 2025" só aparece quando a base tem o ano anterior.
+(function(){const y=+LAST.slice(0,4);const b=document.getElementById('btn-ytd');if(b)b.textContent='Ano '+y;const p=document.getElementById('btn-py');if(p){p.textContent='Ano '+(y-1);if(FIRST<=(y-1)+'-12-31')p.classList.remove('hidden');}})();
 
 // ---------- state ----------
 let unit='ALL', range={a:LAST.slice(0,7)+'-01', b:LAST, kind:'mtd'};
@@ -292,7 +295,8 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
   if(p==='mtd') range={a:lm+'-01',b:LAST,kind:'mtd'};
   if(p==='prev'){const d=new Date(+lm.slice(0,4),+lm.slice(5,7)-1,0);const m=iso(d).slice(0,7);range={a:m+'-01',b:iso(d),kind:'prev'};}
   if(p==='30') range={a:addDays(LAST,-29),b:LAST,kind:'30'};
-  if(p==='ytd') range={a:FIRST,b:LAST,kind:'ytd'};
+  if(p==='ytd'){const a=LAST.slice(0,4)+'-01-01';range={a:a<FIRST?FIRST:a,b:LAST,kind:'ytd'};}
+  if(p==='py'){const y=+LAST.slice(0,4)-1,a=y+'-01-01';range={a:a<FIRST?FIRST:a,b:y+'-12-31',kind:'py'};}
   render();
 });
 
@@ -300,7 +304,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
 function inRange(d,r){return d>=r.a&&d<=r.b;}
 function filt(rows,r,u){return rows.filter(x=>inRange(x[0],r)&&(u==='ALL'||x[1]===u));}
 function sum(rows,i){return rows.reduce((s,x)=>s+x[i],0);}
-function prevRange(r){if(r.kind==='day'){const p=addDays(r.a,-7);return {a:p,b:p,label:'mesmo dia da semana passada ('+brShort(p)+')'};}const len=Math.round((pd(r.b)-pd(r.a))/86400000)+1;if(r.kind==='mtd'||r.kind==='month'||r.kind==='prev'){const d=new Date(+r.a.slice(0,4),+r.a.slice(5,7)-2,1);const m=iso(d).slice(0,7);const dayB=+r.b.slice(8,10);const lastOfPrev=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();return {a:m+'-01',b:m+'-'+String(Math.min(dayB,lastOfPrev)).padStart(2,'0'),label:'mesmo período de '+MESES[+m.slice(5,7)-1]};}return {a:addDays(r.a,-len),b:addDays(r.a,-1),label:len+' dias anteriores'};}
+function prevRange(r){if(r.kind==='ytd'){const y=+r.a.slice(0,4)-1;return {a:y+r.a.slice(4),b:y+r.b.slice(4),label:'mesmo período de '+y};}if(r.kind==='day'){const p=addDays(r.a,-7);return {a:p,b:p,label:'mesmo dia da semana passada ('+brShort(p)+')'};}const len=Math.round((pd(r.b)-pd(r.a))/86400000)+1;if(r.kind==='mtd'||r.kind==='month'||r.kind==='prev'){const d=new Date(+r.a.slice(0,4),+r.a.slice(5,7)-2,1);const m=iso(d).slice(0,7);const dayB=+r.b.slice(8,10);const lastOfPrev=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();return {a:m+'-01',b:m+'-'+String(Math.min(dayB,lastOfPrev)).padStart(2,'0'),label:'mesmo período de '+MESES[+m.slice(5,7)-1]};}return {a:addDays(r.a,-len),b:addDays(r.a,-1),label:len+' dias anteriores'};}
 function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
 const svgNS='http://www.w3.org/2000/svg';
 function S(tag,attrs){const e=document.createElementNS(svgNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
@@ -487,21 +491,22 @@ function renderMonthly(){
   const lg=document.getElementById('monthly-legend');lg.replaceChildren();
   if(series.length>1)series.forEach(u=>{const s=el('span');const i=el('i');i.className='rect';i.style.background=colorOf(u);s.appendChild(i);s.appendChild(document.createTextNode(nice(u)));lg.appendChild(s);});
   const agg={};daily.forEach(x=>{if(unit!=='ALL'&&x[1]!==unit)return;const m=x[0].slice(0,7);agg[m]=agg[m]||{};agg[m][x[1]]=(agg[m][x[1]]||0)+x[2];});
-  const totals=months.map(m=>series.reduce((s,u)=>s+(agg[m]?.[u]||0),0));
+  const MM=months.slice(-12); // com 2025 na base, 21 barras ficariam espremidas
+  const totals=MM.map(m=>series.reduce((s,u)=>s+(agg[m]?.[u]||0),0));
   const W=cw('monthly-chart'),H=W<560?220:260,ml=40,mr=16,mt=24,mb=26;const iw=W-ml-mr,ih=H-mt-mb;
   const ticks=niceTicks(Math.max(1,...totals),4);const ymax=ticks[ticks.length-1];
-  const bw=iw/months.length;const barW=Math.min(48,bw*0.66);
+  const bw=iw/MM.length;const barW=Math.min(48,bw*0.66);
   const y=v=>mt+ih-(v/ymax)*ih;
   const svg=S('svg',{viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':'Vendas por mês'});
   const g=S('g',{class:'axis'});ticks.forEach(t=>{g.appendChild(S('line',{x1:ml,x2:W-mr,y1:y(t),y2:y(t),class:'grid-line'}));const tx=S('text',{x:ml-6,y:y(t)+4,'text-anchor':'end'});tx.textContent=fmt(t);g.appendChild(tx);});
   g.appendChild(S('line',{x1:ml,x2:W-mr,y1:y(0),y2:y(0),class:'base'}));svg.appendChild(g);
-  months.forEach((m,i)=>{const cx=ml+bw*i+bw/2;let acc=0;const partial=m===LAST.slice(0,7)&&LAST.slice(8,10)!==String(new Date(+m.slice(0,4),+m.slice(5,7),0).getDate());
+  MM.forEach((m,i)=>{const cx=ml+bw*i+bw/2;let acc=0;const partial=m===LAST.slice(0,7)&&LAST.slice(8,10)!==String(new Date(+m.slice(0,4),+m.slice(5,7),0).getDate());
     series.forEach((u,si)=>{const v=agg[m]?.[u]||0;if(!v)return;const y1=y(acc+v),y0=y(acc);const r=S('rect',{x:cx-barW/2,y:y1+(acc?1:0),width:barW,height:Math.max(0,y0-y1-(acc?1:0)),fill:colorOf(u),opacity:partial?0.55:1});const t=S('title');t.textContent=MESES_L[+m.slice(5,7)-1]+' · '+nice(u)+': '+fmt(v);r.appendChild(t);svg.appendChild(r);acc+=v;});
     const tl=S('text',{x:cx,y:y(acc)-6,'text-anchor':'middle',class:'lbl strong'});tl.textContent=fmt(acc);svg.appendChild(tl);
-    const xl=S('text',{x:cx,y:H-8,'text-anchor':'middle',class:'lbl'});xl.textContent=MESES[+m.slice(5,7)-1]+(partial?'*':'');svg.appendChild(xl);
+    const xl=S('text',{x:cx,y:H-8,'text-anchor':'middle',class:'lbl'});xl.textContent=MESES[+m.slice(5,7)-1]+(m.slice(5,7)==='01'&&i?'/'+m.slice(2,4):'')+(partial?'*':'');svg.appendChild(xl);
   });
   wrap.appendChild(svg);
-  document.getElementById('monthly-sub').textContent=MESES[+months[0].slice(5,7)-1]+'–'+MESES[+months[months.length-1].slice(5,7)-1]+' 2026 · * mês em andamento (até '+br(LAST)+')';
+  const f=m=>MESES[+m.slice(5,7)-1]+'/'+m.slice(0,4);document.getElementById('monthly-sub').textContent=(MM.length<months.length?'últimos 12 meses · ':'')+f(MM[0])+' – '+f(MM[MM.length-1])+' · * mês em andamento (até '+br(LAST)+')';
 }
 
 let rankAll=false;
