@@ -98,12 +98,22 @@ tr.lead td.n b{font-weight:700}
 .rank .pos{display:inline-block;width:22px;color:var(--text-3)}
 .small{font-size:12px;color:var(--text-3)}
 footer{font-size:12px;color:var(--text-3);margin-top:14px}
+.acoes{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.btn-reload{font:inherit;font-size:13px;font-weight:600;cursor:pointer;color:var(--brand-ink);background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.45);border-radius:8px;padding:6px 12px}
+.btn-reload:hover{background:rgba(255,255,255,.24)}
+.btn-reload:disabled{opacity:.6;cursor:default}
+#reload-msg{font-size:12px;opacity:.9;width:100%;text-align:right}
+#reload-msg:empty{display:none}
 </style>
 </head>
 <body>
 <header class="top"><div class="row">
   <div><h1 id="title">Corrida de Vendas</h1><div class="meta" id="meta"></div></div>
-  <span class="pill" id="status"></span>
+  <div class="acoes">
+    <span class="pill" id="status"></span>
+    <button type="button" class="btn-reload" id="btn-reload" title="Buscar as vendas mais recentes no CTN">&#8635; Atualizar agora</button>
+    <span id="reload-msg" role="status"></span>
+  </div>
 </div></header>
 <main>
   <a class="back" href="./">&larr; Dashboard de vendas</a>
@@ -288,6 +298,34 @@ UN.forEach((u,i)=>{const h=el('div');h.style.cssText='font-weight:600;font-size:
   pess.forEach(([v,n],k)=>{const li=el('li');const s=el('span');s.appendChild(el('span','pos',(k+1)+'º'));s.appendChild(document.createTextNode(v));li.appendChild(s);li.appendChild(el('b',null,fmt(n)));ol.appendChild(li);});
   tops.appendChild(ol);
   if(site)tops.appendChild(el('div','small','+ '+fmt(site)+' venda'+(site>1?'s':'')+' pelo site (contam no placar)'));});
+
+// ---- botão "Atualizar agora" ----
+// Mesma Função do Pages do dashboard principal (functions/api/atualizar.js):
+// dispara o atualizar.yml, que regenera o index.html E esta página juntos.
+// Endereços absolutos porque esta página é servida em /corrida.
+const btn=document.getElementById('btn-reload'), msg=document.getElementById('reload-msg');
+const say=t=>{msg.textContent=t;};
+btn.onclick=async()=>{
+  btn.disabled=true;say('Pedindo atualização…');
+  try{
+    const r=await fetch('/api/atualizar',{method:'POST'});
+    if(r.ok){say('Atualizando… leva de 2 a 5 minutos. A página recarrega sozinha.');aguardar();return;}
+    const j=await r.json().catch(()=>({}));say('Falhou: '+(j.erro||('HTTP '+r.status)));
+  }catch(e){say('Sem conexão: '+e.message);}
+  btn.disabled=false;
+};
+// Espera a base publicada mudar de carimbo: além do CTN (1 a 3 min), o
+// Cloudflare ainda precisa publicar a versão nova.
+function aguardar(){
+  const antes=D.atualizado_em, ini=Date.now();
+  const timer=setInterval(async()=>{
+    if(Date.now()-ini>8*60000){clearInterval(timer);say('Demorou mais que o esperado. Recarregue em alguns minutos.');btn.disabled=false;return;}
+    try{
+      const m=await (await fetch('/data/meta.json?t='+Date.now(),{cache:'no-store'})).json();
+      if(m.atualizado_em&&m.atualizado_em!==antes){clearInterval(timer);say('Pronto! Recarregando…');setTimeout(()=>location.reload(),800);}
+    }catch(e){}
+  },15000);
+}
 
 document.getElementById('foot').textContent='Critério: '+(C.criterio_texto||'total de vendas (filiações + refiliações)').toLowerCase()+' de '+dm(C.inicio)+' a '+dm(C.fim)+', incluindo vendas pelo site. Fonte: CTN · base atualizada em '+D.atualizado_em+' · atualiza a cada 30 min.';
 })();
