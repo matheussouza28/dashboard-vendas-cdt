@@ -47,6 +47,7 @@ main{max-width:1200px;margin:0 auto;padding:14px 14px 40px}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 12px}
 .tab{border:1px solid var(--border);background:var(--surface);color:var(--text-2);padding:7px 12px;border-radius:999px;cursor:pointer;font-size:13px;white-space:nowrap}
 .tab[aria-selected="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+a.tab{text-decoration:none;display:inline-block}
 .tab .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
 .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .filters label{font-size:12px;color:var(--text-2)}
@@ -276,6 +277,9 @@ if(UNITS.includes(initU)) unit=initU;
 const tabs=document.getElementById('tabs');
 function mkTab(id,label,color){const b=document.createElement('button');b.className='tab';b.role='tab';b.dataset.u=id;if(color){const i=document.createElement('span');i.className='dot';i.style.background=color;b.appendChild(i);}b.appendChild(document.createTextNode(label));b.onclick=()=>{if(id==='REPORT'){document.body.classList.add('mode-report');document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.u==='REPORT'));history.replaceState(null,'','#relatorio');renderReport();return;}document.body.classList.remove('mode-report');unit=id;history.replaceState(null,'',id==='ALL'?location.pathname:'#'+id.toLowerCase().replace(/ /g,'_'));render();};tabs.appendChild(b);}
 if(UNITS.length>1){mkTab('ALL','Todas as unidades');UNITS.forEach(u=>mkTab(u,nice(u),colorOf(u)));}else{mkTab('ALL',nice(UNITS[0]),colorOf(UNITS[0]));}mkTab('REPORT','📋 Relatório do dia');
+// Atalho para a página da corrida enquanto houver "campanha" no config.json.
+// É um link, não uma aba: a corrida é outra página (corrida.html).
+if(D.campanha){const a=document.createElement('a');a.className='tab';a.href='corrida';a.textContent='🏁 Corrida';a.title=D.campanha.nome||'Corrida de vendas';tabs.appendChild(a);}
 
 // ---------- filters ----------
 const sel=document.getElementById('mes');

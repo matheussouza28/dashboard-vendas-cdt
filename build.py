@@ -84,8 +84,9 @@ payload = {
   'grupos': cfg.get('grupos_relatorio', []),
   'metas': cfg.get('metas_semana', {}),
   'peso_dia': cfg.get('peso_dia', {}),
+  'campanha': cfg.get('campanha'),  # só para o atalho "Corrida" nas abas
 }
-json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent','grupos','metas','peso_dia')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
+json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent','grupos','metas','peso_dia','campanha')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
 tpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template.html'), encoding='utf-8').read()
 html = tpl.replace('__DATA__', json.dumps(payload, ensure_ascii=False, separators=(',',':')).replace('</', '<\\/'))
 open(os.path.join(repo, 'dashboard_vendas.html'), 'w', encoding='utf-8').write(html)
