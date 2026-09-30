@@ -2,7 +2,7 @@
 """Consolida CSVs do CTN (layout Filiação por Vendedor) em data/ e gera dashboard_vendas.html.
 Uso: python3 build.py <pasta_com_csvs_ctn> [--repo <pasta_do_repo>]
 Cada CSV de origem: Franquia,Matricula,Filiado,Telefone,Nome,Data(serial Excel ou dd/mm/yyyy hh:mm:ss),Vendedor,Login,Prospeccao
-Regras: dedup por Matricula (a última ocorrência vence); a base existente em data/base_vendas.csv é preservada e mesclada.
+Regras: uma venda = matrícula + dia (a última ocorrência do dia vence); a base existente em data/base_vendas.csv é preservada e mesclada.
 """
 import sys, os, glob, json, datetime as dt
 import pandas as pd
@@ -14,7 +14,7 @@ datadir = os.path.join(repo, 'data'); os.makedirs(datadir, exist_ok=True)
 #   Filiado  = nome do cliente
 #   Telefone = celular do cliente
 #   Login    = e-mail pessoal do vendedor
-# Nenhuma das tres entra em daily/vend/recent (o dedup e por Matricula), entao sao
+# Nenhuma das tres entra em daily/vend/recent (o dedup e por matricula + dia), entao sao
 # descartadas aqui e nunca chegam a base publicada em data/base_vendas.csv.
 COLS = ['Franquia','Matricula','Nome','Data','Vendedor','Prospeccao']
 
@@ -53,7 +53,13 @@ if _alheia.any():
     print('DESCARTADAS %d vendas com matrícula de outra franquia:' % _alheia.sum())
     print(df.loc[_alheia, ['Franquia', 'Matricula', 'Data']].to_string(index=False))
     df = df[~_alheia]
-df = df.sort_values(['DataHora','Matricula']).drop_duplicates(['Matricula'], keep='last')
+# Uma venda = matrícula + DIA. O CTN reaproveita a matrícula na refiliação e,
+# no relatório, mostra só a ocorrência mais recente; com o dedup só por matrícula
+# a refiliação apagava a venda original do mês dela (30/09: 67 vendas tinham
+# mudado de mês). Agora a original fica no mês de origem e a refiliação conta
+# como venda nova. O mesmo dia baixado de novo continua sendo uma venda só.
+df = df.sort_values(['DataHora','Matricula'])
+df = df[~df.assign(_dia=df['DataHora'].dt.date).duplicated(['Matricula', '_dia'], keep='last')]
 df = df.sort_values(['Franquia','DataHora','Matricula'], kind='mergesort').reset_index(drop=True)
 df['Data'] = df['DataHora'].dt.strftime('%d/%m/%Y %H:%M:%S')
 df['Dia'] = df['DataHora'].dt.strftime('%Y-%m-%d'); df['Mes'] = df['Dia'].str[:7]
