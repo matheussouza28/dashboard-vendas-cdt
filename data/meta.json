@@ -1,8 +1,8 @@
 {
- "atualizado_em": "30/09/2026 23:46",
+ "atualizado_em": "01/10/2026 03:01",
  "periodo": {
   "inicio": "2025-01-01",
-  "fim": "2026-09-30"
+  "fim": "2026-10-01"
  },
  "unidades": [
   "BELEM CENTRO",
@@ -12,8 +12,8 @@
   "PARINTINS",
   "PORTO ALEGRE NORTE"
  ],
- "total": 99291,
- "hoje": "2026-09-30",
+ "total": 99293,
+ "hoje": "2026-10-01",
  "titulo": "Dashboard de Vendas — Cartão de Todos",
  "repo": "matheussouza28/dashboard-vendas-cdt"
 }
