@@ -1,5 +1,5 @@
 {
- "atualizado_em": "07/10/2026 15:46",
+ "atualizado_em": "07/10/2026 16:16",
  "periodo": {
   "inicio": "2025-01-01",
   "fim": "2026-10-07"
@@ -12,7 +12,7 @@
   "PARINTINS",
   "PORTO ALEGRE NORTE"
  ],
- "total": 100328,
+ "total": 100340,
  "hoje": "2026-10-07",
  "titulo": "Dashboard de Vendas — Cartão de Todos",
  "repo": "matheussouza28/dashboard-vendas-cdt"
