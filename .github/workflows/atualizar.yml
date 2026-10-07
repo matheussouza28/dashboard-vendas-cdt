@@ -64,3 +64,10 @@ jobs:
           echo "Push rejeitado - rebase na branch remota e nova tentativa."
           git pull --rebase origin main || { git rebase --abort 2>/dev/null || true; echo "::error::Conflito no rebase; nada publicado nesta rodada."; exit 1; }
           git push
+
+      # Avisa o vigia (cron-dashboards) que terminou: a linha do #log no Discord
+      # sai em segundos, em vez de esperar a rodada de 10 min. Roda até em falha.
+      - name: Avisar o vigia
+        if: always()
+        continue-on-error: true
+        run: curl -s -m 10 -X POST "https://cron-dashboards.matheus-grs1996.workers.dev/cutucar" -H "Content-Type: application/json" -d "{\"repo\":\"${{ github.repository }}\",\"run\":${{ github.run_id }}}" || true
