@@ -70,4 +70,5 @@ jobs:
       - name: Avisar o vigia
         if: always()
         continue-on-error: true
-        run: curl -s -m 10 -X POST "https://cron-dashboards.matheus-grs1996.workers.dev/cutucar" -H "Content-Type: application/json" -d "{\"repo\":\"${{ github.repository }}\",\"run\":${{ github.run_id }}}" || true
+        run: |
+          curl -s -m 10 -X POST "https://cron-dashboards.matheus-grs1996.workers.dev/cutucar" \n            -H "Content-Type: application/json" \n            -d "{\"repo\":\"${{ github.repository }}\",\"run\":${{ github.run_id }}}" || true
