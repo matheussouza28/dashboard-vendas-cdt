@@ -25,6 +25,11 @@
     "criterio_texto": "Total de vendas (filiações + refiliações)"
   },
 
+  "_paginas_unidade": "Página exclusiva por unidade, além do painel geral (só com os dados dela). O acesso é separado no Cloudflare Access por caminho: dashboard-vendas-cdt.pages.dev/<caminho>.",
+  "paginas_unidade": {
+    "MANAUS NORTE": {"caminho": "manaus-norte", "nome": "Manaus Norte"}
+  },
+
   "grupos_relatorio": [
     {"nome": "5 unidades", "titulo": "Relatório de Vendas",
      "unidades": ["BELEM CENTRO", "MANAUS CENTRO", "MANAUS NORTE", "PARINTINS", "PORTO ALEGRE NORTE"],

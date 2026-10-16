@@ -250,7 +250,8 @@ body.mode-report #report{display:block}
 const D=JSON.parse(document.getElementById('data').textContent);
 const UNITS=D.unidades; // fixed order → fixed colors
 const COLORS=['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)'];
-const colorOf=u=>COLORS[UNITS.indexOf(u)%COLORS.length];
+// Na página de uma unidade só há ela: mantém a cor que ela tem no painel geral.
+const colorOf=u=>COLORS[(D.cor_unidade!=null&&UNITS.length===1?D.cor_unidade:UNITS.indexOf(u))%COLORS.length];
 const NICE={'BELEM CENTRO':'Belém Centro','MANAUS CENTRO':'Manaus Centro','MANAUS NORTE':'Manaus Norte','OSASCO':'Osasco','PARINTINS':'Parintins','PORTO ALEGRE NORTE':'Porto Alegre Norte','ALVORADA':'Alvorada'};
 const nice=u=>NICE[u]||u;
 const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -279,7 +280,7 @@ if(UNITS.includes(initU)) unit=initU;
 // ---------- tabs ----------
 const tabs=document.getElementById('tabs');
 function mkTab(id,label,color){const b=document.createElement('button');b.className='tab';b.role='tab';b.dataset.u=id;if(color){const i=document.createElement('span');i.className='dot';i.style.background=color;b.appendChild(i);}b.appendChild(document.createTextNode(label));b.onclick=()=>{if(id==='REPORT'){document.body.classList.add('mode-report');document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.u==='REPORT'));history.replaceState(null,'','#relatorio');renderReport();return;}document.body.classList.remove('mode-report');unit=id;history.replaceState(null,'',id==='ALL'?location.pathname:'#'+id.toLowerCase().replace(/ /g,'_'));render();};tabs.appendChild(b);}
-if(UNITS.length>1){mkTab('ALL','Todas as unidades');UNITS.forEach(u=>mkTab(u,nice(u),colorOf(u)));}else{mkTab('ALL',nice(UNITS[0]),colorOf(UNITS[0]));}mkTab('REPORT','📋 Relatório do dia');
+if(UNITS.length>1){mkTab('ALL','Todas as unidades');UNITS.forEach(u=>mkTab(u,nice(u),colorOf(u)));}else{mkTab('ALL',nice(UNITS[0]),colorOf(UNITS[0]));}if(!D.sem_relatorio)mkTab('REPORT','📋 Relatório do dia');
 // Atalho para a página da corrida enquanto houver "campanha" no config.json.
 // É um link, não uma aba: a corrida é outra página (corrida.html).
 if(D.campanha){const a=document.createElement('a');a.className='tab';a.href='corrida';a.textContent='🏁 Corrida';a.title=D.campanha.nome||'Corrida de vendas';tabs.appendChild(a);}
@@ -571,7 +572,8 @@ function setTok(v){try{v?localStorage.setItem('gh_token',v):localStorage.removeI
     if(location.hash.toLowerCase().indexOf('admin')>=0){localStorage.setItem('gh_admin','1');history.replaceState(null,'',location.pathname+location.search);}
     adm=localStorage.getItem('gh_admin')==='1'||!!localStorage.getItem('gh_token');
   }catch(e){ adm=location.hash.toLowerCase().indexOf('admin')>=0; }
-  if(!adm){btnR.style.display='none';msgR.style.display='none';}
+  // Páginas por unidade são dos gestores: sem botão de atualizar.
+  if(!adm||D.pagina_unidade){btnR.style.display='none';msgR.style.display='none';}
 })();
 function say(t,cor){msgR.textContent=t;msgR.style.color=cor||'';}
 document.getElementById('tok-cancel').onclick=()=>modal.classList.add('hidden');

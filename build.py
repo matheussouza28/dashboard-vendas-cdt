@@ -112,5 +112,35 @@ if camp and os.path.exists(tplc):
     htmlc = open(tplc, encoding='utf-8').read().replace('__DATA__', json.dumps(corrida, ensure_ascii=False, separators=(',',':')).replace('</', '<\\/'))
     open(os.path.join(repo, 'corrida.html'), 'w', encoding='utf-8').write(htmlc)
     print('corrida:', ' × '.join('%s %d' % (u, int((c.Franquia == u).sum())) for u in camp['unidades']))
+# Página exclusiva de uma unidade (ex.: /manaus-norte/), além do painel com
+# todas. Mesma ideia do dashboard RS-SC-RR: cada página leva SÓ os dados da
+# sua unidade no HTML (esconder na tela não basta: o conteúdo fica legível
+# para quem abre). Quem abre qual página é definido no Cloudflare Access, por
+# caminho (dashboard-vendas-cdt.pages.dev/manaus-norte).
+for u, pg in (cfg.get('paginas_unidade') or {}).items():
+    du = d[d.Franquia == u]
+    if du.empty:
+        continue
+    pdir = os.path.join(repo, pg['caminho']); os.makedirs(os.path.join(pdir, 'data'), exist_ok=True)
+    nome_u = pg.get('nome', u.title())
+    meta_u = (cfg.get('metas_semana') or {}).get(u)
+    # Relatório do dia da unidade: o grupo dela no config, ou um montado com a
+    # meta semanal da unidade.
+    grupos_u = [g for g in payload['grupos'] if set(g.get('unidades', [])) == {u}] or (
+        [{'nome': nome_u, 'titulo': 'Relatório de Vendas ' + nome_u, 'unidades': [u], 'meta_semana': meta_u}] if meta_u else [])
+    pu = dict(payload,
+              periodo={'inicio': du.Dia.min(), 'fim': df.Dia.max()},
+              unidades=[u], total=int(len(du)),
+              daily=[r for r in payload['daily'] if r[1] == u],
+              vend=[r for r in payload['vend'] if r[1] == u],
+              recent=[r for r in recent if r[1] == u],
+              titulo='Dashboard de Vendas — ' + nome_u,
+              metas={u: meta_u} if meta_u else {}, campanha=None,
+              grupos=grupos_u, sem_relatorio=not grupos_u, pagina_unidade=True, cor_unidade=units.index(u))
+    json.dump({k: pu[k] for k in ('atualizado_em', 'periodo', 'unidades', 'total', 'hoje', 'titulo')},
+              open(os.path.join(pdir, 'data', 'meta.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    open(os.path.join(pdir, 'index.html'), 'w', encoding='utf-8').write(
+        tpl.replace('__DATA__', json.dumps(pu, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')))
+    print('página da unidade: /%s/ (%d vendas)' % (pg['caminho'], len(du)))
 print('base:', len(df), 'vendas |', df.Dia.min(), '→', df.Dia.max(), '| unidades:', units)
 print(df.groupby(['Franquia','Mes']).size().unstack(fill_value=0).to_string())
