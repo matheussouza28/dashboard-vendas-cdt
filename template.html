@@ -203,6 +203,10 @@ body.mode-report #report{display:block}
       <div class="chart-wrap" id="mix-chart"></div>
     </div>
   </div>
+  <div class="card" id="pag-card" style="margin-top:12px">
+    <div class="hd"><div><h2>Forma de pagamento</h2><div class="sub" id="pag-sub">no período selecionado</div></div></div>
+    <div class="tbl-wrap" id="pag-table"></div>
+  </div>
   <div class="grid two" style="margin-top:12px">
     <div class="card">
       <div class="hd"><div><h2>Vendas por mês</h2><div class="sub" id="monthly-sub">jan–set 2026</div></div></div>
@@ -217,10 +221,6 @@ body.mode-report #report{display:block}
   <div class="card hidden" id="metas-card" style="margin-top:12px">
     <div class="hd"><div><h2>Meta da semana</h2><div class="sub" id="metas-sub"></div></div></div>
     <div class="tbl-wrap" id="metas-table"></div>
-  </div>
-  <div class="card" id="pag-card" style="margin-top:12px">
-    <div class="hd"><div><h2>Forma de pagamento</h2><div class="sub" id="pag-sub">no período selecionado</div></div></div>
-    <div class="tbl-wrap" id="pag-table"></div>
   </div>
   <div class="card" style="margin-top:12px">
     <div class="hd"><div><h2>Resumo por unidade</h2><div class="sub" id="units-sub"></div></div></div>
@@ -490,7 +490,8 @@ function renderPag(){
   const G=new Map(ORD.map(g=>[g,{t:0,it:new Map([[g,0]])}]));
   rows.forEach(r=>{const f=FORMAS[r[2]]||['Outros','?'];const g=G.get(f[0])||{t:0,it:new Map()};g.t+=r[3];g.it.set(f[1],(g.it.get(f[1])||0)+r[3]);G.set(f[0],g);});
   const t=el('table');const th=el('tr');['Forma','Vendas','%',''].forEach(h=>th.appendChild(el('th',null,h)));t.appendChild(th);
-  const linha=(nome,v,cls)=>{const tr=el('tr',cls);tr.appendChild(el('td',null,nome));tr.appendChild(el('td','num',fmt(v)));tr.appendChild(el('td','num',tot?pct(v/tot):'–'));
+  const NOME={'Cartão (a confirmar)':'Vendas do dia (cartão a confirmar)'};
+  const linha=(nome,v,cls)=>{const tr=el('tr',cls);tr.appendChild(el('td',null,NOME[nome]||nome));tr.appendChild(el('td','num',fmt(v)));tr.appendChild(el('td','num',tot?pct(v/tot):'–'));
     const td=el('td');td.style.width='40%';const b=el('div','pbar');const i=el('i');i.style.width=(tot?v/tot*100:0)+'%';if(cls==='sub')i.style.opacity='.55';b.appendChild(i);td.appendChild(b);tr.appendChild(td);t.appendChild(tr);};
   const pos=g=>{const i=ORD.indexOf(g);return i<0?99:i;};
   [...G].sort((a,b)=>pos(a[0])-pos(b[0])).forEach(([g,x])=>{
@@ -499,7 +500,7 @@ function renderPag(){
     if(itens.length>1||itens[0][0]!==g)itens.forEach(([n,v])=>linha(n,v,'sub'));
   });
   if(!rows.length)wrap.appendChild(el('div','small','Sem vendas no período.'));else wrap.appendChild(t);
-  if(G.has('Cartão (a confirmar)'))wrap.appendChild(el('div','small','Cartão (a confirmar): vendas que o Power BI ainda não trouxe (ele vem com um dia de atraso). O CTN mostra só a bandeira, sem dizer se é crédito ou débito.'));
+  if(G.has('Cartão (a confirmar)'))wrap.appendChild(el('div','small','Vendas do dia: o Power BI traz crédito e débito só no dia seguinte (o CTN mostra só a bandeira do cartão). Na próxima exportação elas passam para a linha certa.'));
 }
 
 function renderMix(rows){
