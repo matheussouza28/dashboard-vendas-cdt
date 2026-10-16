@@ -84,12 +84,34 @@ def forma_pagamento(nome):
     return ('Outros', n.title() if n and n != 'NAN' else 'Não informado')
 
 d = df.assign(fil=(df.Prospeccao=='FILIAÇÃO').astype(int), ref=(df.Prospeccao=='REFILIAÇÃO').astype(int))
-# Só o grupo vai para a página (os quatro do painel + Outros): o detalhe por
-# bandeira deixava o HTML do CDT ~400 KB mais pesado.
+# Crédito × débito de verdade vem do Power BI: o CTN só traz a bandeira, igual
+# nos dois. data/pagamento_resumo.csv (Dia, Franquia, Forma, n) é publicado
+# pela VM do bot (deploy/reserva/pagamento.py) a partir das exportações do
+# Power BI; a base venda a venda fica só lá, porque este repositório é público.
+# Nos dias que o Power BI cobre, vale o resumo; depois (o Power BI vem com um
+# dia de atraso), o CTN — e aí cartão sai como "Cartão (a confirmar)".
+# Forma vazia no resumo = venda que o Power BI não tem: classifica pelo CTN.
 d['Forma'] = d['Nome'].map(lambda x: forma_pagamento(x)[0])
-formas = sorted(d['Forma'].unique().tolist())
-pag = [[r.Dia, r.Franquia, formas.index(r.Forma), int(r.n)]
-       for r in d.groupby(['Dia', 'Franquia', 'Forma']).size().reset_index(name='n').itertuples()]
+pr_path = os.path.join(datadir, 'pagamento_resumo.csv')
+pr = pd.read_csv(pr_path, dtype={'Forma': str}, keep_default_na=False) if os.path.exists(pr_path) else pd.DataFrame(columns=['Dia', 'Franquia', 'Forma', 'n'])
+pag_ate = pr.groupby('Franquia').Dia.max().to_dict()
+coberto = d.Dia <= d.Franquia.map(pag_ate).fillna('')
+sem_pbi = d[~coberto].assign(Forma=lambda x: x.Forma.replace('Cartão de crédito', 'Cartão (a confirmar)'))
+sem_pbi = sem_pbi.groupby(['Dia', 'Franquia', 'Forma']).size().reset_index(name='n')
+# Venda do CTN ausente do Power BI (forma vazia): o resumo não diz qual é, então
+# conta pela forma do CTN daquele dia/unidade — são ~1 em 10 mil.
+vazio = pr[pr.Forma == '']
+if len(vazio):
+    ctn_dia = d[coberto].groupby(['Dia', 'Franquia', 'Forma']).size().reset_index(name='n')
+    pr = pr[pr.Forma != '']
+    extra = []
+    for v in vazio.itertuples():
+        c = ctn_dia[(ctn_dia.Dia == v.Dia) & (ctn_dia.Franquia == v.Franquia)]
+        extra.append([v.Dia, v.Franquia, (c.sort_values('n').Forma.iloc[-1] if len(c) else 'Outros').replace('Cartão de crédito', 'Cartão (a confirmar)'), int(v.n)])
+    pr = pd.concat([pr, pd.DataFrame(extra, columns=['Dia', 'Franquia', 'Forma', 'n'])])
+pg = pd.concat([pr[pr.Franquia.isin(d.Franquia.unique())], sem_pbi]).groupby(['Dia', 'Franquia', 'Forma'], as_index=False).n.sum()
+formas = sorted(pg.Forma.unique().tolist())
+pag = [[r.Dia, r.Franquia, formas.index(r.Forma), int(r.n)] for r in pg.itertuples()]
 daily = d.groupby(['Dia','Franquia']).agg(vendas=('Matricula','size'), filiacao=('fil','sum'), refiliacao=('ref','sum')).reset_index()
 vend = d.groupby(['Mes','Franquia','Vendedor']).agg(vendas=('Matricula','size'), filiacao=('fil','sum'), refiliacao=('ref','sum')).reset_index()
 daily.to_csv(os.path.join(datadir,'resumo_diario.csv'), index=False)
@@ -108,7 +130,7 @@ payload = {
   'daily': daily.values.tolist(),
   'vend': vend.values.tolist(),
   'recent': recent,
-  'formas': [[f, f] for f in formas], 'pag': pag,
+  'formas': [[f, f] for f in formas], 'pag': pag, 'pag_ate': pag_ate,
   'hoje': (dt.datetime.utcnow()-dt.timedelta(hours=3)).strftime('%Y-%m-%d'),
   'titulo': cfg.get('titulo', 'Dashboard de Vendas — Cartão de Todos'),
   'repo': cfg.get('repo', ''),
@@ -117,7 +139,7 @@ payload = {
   'peso_dia': cfg.get('peso_dia', {}),
   'campanha': cfg.get('campanha'),  # só para o atalho "Corrida" nas abas
 }
-json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent','grupos','pag','formas','metas','peso_dia','campanha')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
+json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent','grupos','pag','formas','pag_ate','metas','peso_dia','campanha')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
 tpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template.html'), encoding='utf-8').read()
 html = tpl.replace('__DATA__', json.dumps(payload, ensure_ascii=False, separators=(',',':')).replace('</', '<\\/'))
 open(os.path.join(repo, 'dashboard_vendas.html'), 'w', encoding='utf-8').write(html)
@@ -159,7 +181,7 @@ for u, pg in (cfg.get('paginas_unidade') or {}).items():
               daily=[r for r in payload['daily'] if r[1] == u],
               vend=[r for r in payload['vend'] if r[1] == u],
               recent=[r for r in recent if r[1] == u],
-              pag=[r for r in pag if r[1] == u],
+              pag=[r for r in pag if r[1] == u], pag_ate={k: v for k, v in pag_ate.items() if k == u},
               titulo='Dashboard de Vendas — ' + nome_u,
               metas={u: meta_u} if meta_u else {}, campanha=None,
               grupos=grupos_u, sem_relatorio=not grupos_u, pagina_unidade=True, cor_unidade=units.index(u))

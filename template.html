@@ -481,7 +481,10 @@ function renderPag(){
   const card=document.getElementById('pag-card');
   if(!PAG.length){card.classList.add('hidden');return;}
   const rows=filt(PAG,range,unit),tot=sum(rows,3),wrap=document.getElementById('pag-table');wrap.replaceChildren();
-  document.getElementById('pag-sub').textContent='no período selecionado · '+fmt(tot)+' vendas';
+  // Até que dia o Power BI confirmou crédito × débito (por unidade).
+  const escopo=unit==='ALL'?UNITS:[unit],PA=D.pag_ate||{};
+  const ate=escopo.filter(u=>PA[u]).map(u=>PA[u]).sort()[0],faltam=escopo.filter(u=>!PA[u]);
+  document.getElementById('pag-sub').textContent='no período selecionado · '+fmt(tot)+' vendas'+(ate?' · crédito/débito pelo Power BI até '+brShort(ate):'')+(faltam.length?(ate?' · sem Power BI: ':' · sem dados do Power BI')+(ate?faltam.map(nice).join(', '):''):'');
   // Os quatro grupos sempre aparecem, na mesma ordem (zerados se não houver); "Outros" só se existir.
   const ORD=['Cartão de crédito','Cartão de débito','Concessionária de energia','Corporativo'];
   const G=new Map(ORD.map(g=>[g,{t:0,it:new Map([[g,0]])}]));
@@ -496,6 +499,7 @@ function renderPag(){
     if(itens.length>1||itens[0][0]!==g)itens.forEach(([n,v])=>linha(n,v,'sub'));
   });
   if(!rows.length)wrap.appendChild(el('div','small','Sem vendas no período.'));else wrap.appendChild(t);
+  if(G.has('Cartão (a confirmar)'))wrap.appendChild(el('div','small','Cartão (a confirmar): vendas que o Power BI ainda não trouxe (ele vem com um dia de atraso). O CTN mostra só a bandeira, sem dizer se é crédito ou débito.'));
 }
 
 function renderMix(rows){
