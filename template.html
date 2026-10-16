@@ -83,6 +83,7 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 .lbl{fill:var(--text-2);font-size:11px}
 .lbl.strong{fill:var(--text);font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:13px}
+.pbar{height:8px;background:var(--grid,rgba(127,127,127,.15));border-radius:4px;min-width:60px}.pbar i{display:block;height:100%;border-radius:4px;background:var(--fil)}tr.sub td:first-child{padding-left:22px;color:var(--muted,inherit)}tr.grp td{font-weight:600}
 th,td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
 th{font-size:12px;color:var(--text-2);font-weight:600;position:sticky;top:0;background:var(--surface)}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
@@ -217,6 +218,10 @@ body.mode-report #report{display:block}
     <div class="hd"><div><h2>Meta da semana</h2><div class="sub" id="metas-sub"></div></div></div>
     <div class="tbl-wrap" id="metas-table"></div>
   </div>
+  <div class="card" id="pag-card" style="margin-top:12px">
+    <div class="hd"><div><h2>Forma de pagamento</h2><div class="sub" id="pag-sub">no período selecionado</div></div></div>
+    <div class="tbl-wrap" id="pag-table"></div>
+  </div>
   <div class="card" style="margin-top:12px">
     <div class="hd"><div><h2>Resumo por unidade</h2><div class="sub" id="units-sub"></div></div></div>
     <div class="tbl-wrap" id="units-table"></div>
@@ -329,6 +334,7 @@ function render(){
   renderKpis(rows,prows,pr);
   renderDaily(rows,plabel);
   renderMix(rows);
+  renderPag();
   renderMonthly();
   renderRank();
   renderUnits(rows,prows,pr);
@@ -466,6 +472,31 @@ function renderHourly(plabel){
   hours.forEach((h,i)=>{const tr=el('tr');tr.appendChild(el('td',null,h===6?'até 6h':h===22?'22h em diante':h+'h'));series.forEach((u,si)=>tr.appendChild(el('td','n',fmt(data[si][i]))));if(series.length>1)tr.appendChild(el('td','n',fmt(tot[i])));t.appendChild(tr);});tb.appendChild(t);
 }
 document.getElementById('daily-toggle').onclick=function(){const tb=document.getElementById('daily-table'),ch=document.getElementById('daily-chart');const show=tb.classList.contains('hidden');tb.classList.toggle('hidden',!show);ch.classList.toggle('hidden',show);this.textContent=show?'Ver gráfico':'Ver tabela';};
+
+// ---------- forma de pagamento ----------
+// D.pag: [dia, franquia, índice em D.formas, vendas]; D.formas: [grupo, nome].
+// Crédito = bandeiras (Mastercard, Visa, Elo…); débito = "Cartão de débito".
+const FORMAS=D.formas||[],PAG=D.pag||[];
+function renderPag(){
+  const card=document.getElementById('pag-card');
+  if(!PAG.length){card.classList.add('hidden');return;}
+  const rows=filt(PAG,range,unit),tot=sum(rows,3),wrap=document.getElementById('pag-table');wrap.replaceChildren();
+  document.getElementById('pag-sub').textContent='no período selecionado · '+fmt(tot)+' vendas';
+  // Os quatro grupos sempre aparecem, na mesma ordem (zerados se não houver); "Outros" só se existir.
+  const ORD=['Cartão de crédito','Cartão de débito','Concessionária de energia','Corporativo'];
+  const G=new Map(ORD.map(g=>[g,{t:0,it:new Map([[g,0]])}]));
+  rows.forEach(r=>{const f=FORMAS[r[2]]||['Outros','?'];const g=G.get(f[0])||{t:0,it:new Map()};g.t+=r[3];g.it.set(f[1],(g.it.get(f[1])||0)+r[3]);G.set(f[0],g);});
+  const t=el('table');const th=el('tr');['Forma','Vendas','%',''].forEach(h=>th.appendChild(el('th',null,h)));t.appendChild(th);
+  const linha=(nome,v,cls)=>{const tr=el('tr',cls);tr.appendChild(el('td',null,nome));tr.appendChild(el('td','num',fmt(v)));tr.appendChild(el('td','num',tot?pct(v/tot):'–'));
+    const td=el('td');td.style.width='40%';const b=el('div','pbar');const i=el('i');i.style.width=(tot?v/tot*100:0)+'%';if(cls==='sub')i.style.opacity='.55';b.appendChild(i);td.appendChild(b);tr.appendChild(td);t.appendChild(tr);};
+  const pos=g=>{const i=ORD.indexOf(g);return i<0?99:i;};
+  [...G].sort((a,b)=>pos(a[0])-pos(b[0])).forEach(([g,x])=>{
+    linha(g,x.t,'grp');
+    const itens=[...x.it].sort((a,b)=>b[1]-a[1]);
+    if(itens.length>1||itens[0][0]!==g)itens.forEach(([n,v])=>linha(n,v,'sub'));
+  });
+  if(!rows.length)wrap.appendChild(el('div','small','Sem vendas no período.'));else wrap.appendChild(t);
+}
 
 function renderMix(rows){
   const wrap=document.getElementById('mix-chart');wrap.replaceChildren();

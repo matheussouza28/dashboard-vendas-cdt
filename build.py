@@ -65,7 +65,31 @@ df['Data'] = df['DataHora'].dt.strftime('%d/%m/%Y %H:%M:%S')
 df['Dia'] = df['DataHora'].dt.strftime('%Y-%m-%d'); df['Mes'] = df['Dia'].str[:7]
 df[COLS].to_csv(old, index=False, encoding='utf-8')
 
+# Forma de pagamento (coluna "Nome" do relatório do CTN), em quatro grupos:
+# crédito (as bandeiras: Mastercard, Visa, Elo…), débito ("CARTÃO DE DÉBITO -
+# ADYEN"), concessionária de energia (Enel…) e corporativo (boleto). O que não
+# se encaixa (Pix, débito em conta Bradesco, TIM de 2025) vai em "Outros",
+# que só aparece quando existe no período.
+BANDEIRAS = {'MASTERCARD': 'Mastercard', 'MASTER': 'Mastercard', 'VISA': 'Visa', 'ELO': 'Elo',
+             'AMEX': 'Amex', 'DISCOVER': 'Discover', 'HIPER': 'Hipercard', 'HIPERCARD': 'Hipercard',
+             'JCB': 'JCB', 'AURA': 'Aura', 'DINERS': 'Diners'}
+ENERGIA = ('ENEL', 'EQUATORIAL', 'CEMIG', 'COPEL', 'CELESC', 'CPFL', 'LIGHT', 'NEOENERGIA',
+           'COELBA', 'CELPE', 'COSERN', 'ENERGISA', 'AMAZONAS ENERGIA', 'RORAIMA ENERGIA', 'RGE', 'CEEE')
+def forma_pagamento(nome):
+    n = str(nome or '').strip().upper()
+    if 'DÉBITO' in n or 'DEBITO' in n: return ('Cartão de débito', 'Cartão de débito')
+    if n in BANDEIRAS: return ('Cartão de crédito', BANDEIRAS[n])
+    if any(e in n for e in ENERGIA): return ('Concessionária de energia', n.split(' DISTRIBUI')[0].title())
+    if 'CORPORATIVO' in n or n.startswith('BOLETO'): return ('Corporativo', 'Corporativo')
+    return ('Outros', n.title() if n and n != 'NAN' else 'Não informado')
+
 d = df.assign(fil=(df.Prospeccao=='FILIAÇÃO').astype(int), ref=(df.Prospeccao=='REFILIAÇÃO').astype(int))
+# Só o grupo vai para a página (os quatro do painel + Outros): o detalhe por
+# bandeira deixava o HTML do CDT ~400 KB mais pesado.
+d['Forma'] = d['Nome'].map(lambda x: forma_pagamento(x)[0])
+formas = sorted(d['Forma'].unique().tolist())
+pag = [[r.Dia, r.Franquia, formas.index(r.Forma), int(r.n)]
+       for r in d.groupby(['Dia', 'Franquia', 'Forma']).size().reset_index(name='n').itertuples()]
 daily = d.groupby(['Dia','Franquia']).agg(vendas=('Matricula','size'), filiacao=('fil','sum'), refiliacao=('ref','sum')).reset_index()
 vend = d.groupby(['Mes','Franquia','Vendedor']).agg(vendas=('Matricula','size'), filiacao=('fil','sum'), refiliacao=('ref','sum')).reset_index()
 daily.to_csv(os.path.join(datadir,'resumo_diario.csv'), index=False)
@@ -84,6 +108,7 @@ payload = {
   'daily': daily.values.tolist(),
   'vend': vend.values.tolist(),
   'recent': recent,
+  'formas': [[f, f] for f in formas], 'pag': pag,
   'hoje': (dt.datetime.utcnow()-dt.timedelta(hours=3)).strftime('%Y-%m-%d'),
   'titulo': cfg.get('titulo', 'Dashboard de Vendas — Cartão de Todos'),
   'repo': cfg.get('repo', ''),
@@ -92,7 +117,7 @@ payload = {
   'peso_dia': cfg.get('peso_dia', {}),
   'campanha': cfg.get('campanha'),  # só para o atalho "Corrida" nas abas
 }
-json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent','grupos','metas','peso_dia','campanha')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
+json.dump({k:v for k,v in payload.items() if k not in ('daily','vend','recent','grupos','pag','formas','metas','peso_dia','campanha')}, open(os.path.join(datadir,'meta.json'),'w'), ensure_ascii=False, indent=1)
 tpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template.html'), encoding='utf-8').read()
 html = tpl.replace('__DATA__', json.dumps(payload, ensure_ascii=False, separators=(',',':')).replace('</', '<\\/'))
 open(os.path.join(repo, 'dashboard_vendas.html'), 'w', encoding='utf-8').write(html)
@@ -134,6 +159,7 @@ for u, pg in (cfg.get('paginas_unidade') or {}).items():
               daily=[r for r in payload['daily'] if r[1] == u],
               vend=[r for r in payload['vend'] if r[1] == u],
               recent=[r for r in recent if r[1] == u],
+              pag=[r for r in pag if r[1] == u],
               titulo='Dashboard de Vendas — ' + nome_u,
               metas={u: meta_u} if meta_u else {}, campanha=None,
               grupos=grupos_u, sem_relatorio=not grupos_u, pagina_unidade=True, cor_unidade=units.index(u))
