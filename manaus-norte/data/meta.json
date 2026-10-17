@@ -1,5 +1,5 @@
 {
- "atualizado_em": "17/10/2026 10:15",
+ "atualizado_em": "17/10/2026 10:45",
  "periodo": {
   "inicio": "2025-01-01",
   "fim": "2026-10-17"
@@ -7,7 +7,7 @@
  "unidades": [
   "MANAUS NORTE"
  ],
- "total": 31664,
+ "total": 31668,
  "hoje": "2026-10-17",
  "titulo": "Dashboard de Vendas — Manaus Norte"
 }
